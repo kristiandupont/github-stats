@@ -1,105 +1,68 @@
-import { graphql } from "@octokit/graphql";
+import { Octokit } from "@octokit/rest";
 
 // TypeScript interfaces for GitHub API responses
 export interface WorkflowRun {
-  id: string;
+  id: number;
   name: string;
   status: string;
   conclusion: string | null;
-  createdAt: string;
-  updatedAt: string;
-  url: string;
-  workflowDatabaseId: number;
-  pullRequests: {
-    nodes: Array<{
-      number: number;
-      title: string;
-      url: string;
-    }>;
-  };
+  created_at: string;
+  updated_at: string;
+  html_url: string;
+  workflow_id: number;
+  workflow_url: string;
+  pull_requests: Array<{
+    number: number;
+    url: string;
+    html_url?: string;
+    title?: string;
+  }>;
+  head_branch: string;
+  run_number: number;
+  display_title?: string;
 }
 
-export interface Workflow {
-  id: string;
-  name: string;
-  path: string;
-  runs: {
-    nodes: WorkflowRun[];
-  };
-}
+// Create REST API client - will use token if available, otherwise unauthenticated
+const getOctokitClient = () => {
+  const token = localStorage.getItem("github-token");
 
-export interface RepositoryData {
-  repository: {
-    name: string;
-    owner: {
-      login: string;
-    };
-    workflows: {
-      nodes: Workflow[];
-    };
-  };
-}
-
-// GraphQL query to fetch workflow runs
-const WORKFLOW_RUNS_QUERY = `
-  query GetWorkflowRuns($owner: String!, $repo: String!, $first: Int!) {
-    repository(owner: $owner, name: $repo) {
-      name
-      owner {
-        login
-      }
-      workflows(first: 10) {
-        nodes {
-          id
-          name
-          path
-          runs(first: $first, orderBy: {field: CREATED_AT, direction: DESC}) {
-            nodes {
-              id
-              name
-              status
-              conclusion
-              createdAt
-              updatedAt
-              url
-              workflowDatabaseId
-              pullRequests(first: 5) {
-                nodes {
-                  number
-                  title
-                  url
-                }
-              }
-            }
-          }
-        }
-      }
-    }
+  if (token) {
+    return new Octokit({
+      auth: token,
+      userAgent: "github-stats-app",
+    });
   }
-`;
 
-// Create unauthenticated GraphQL client for public repos
-const graphqlClient = graphql.defaults({
-  headers: {
-    "User-Agent": "github-stats-app",
-  },
-});
+  // Fallback to unauthenticated client
+  return new Octokit({
+    userAgent: "github-stats-app",
+  });
+};
 
 export async function fetchWorkflowRuns(
   owner: string,
   repo: string,
   limit: number = 20
-): Promise<RepositoryData> {
+): Promise<WorkflowRun[]> {
   try {
-    const response = await graphqlClient<RepositoryData>(WORKFLOW_RUNS_QUERY, {
+    const octokit = getOctokitClient();
+    const response = await octokit.rest.actions.listWorkflowRunsForRepo({
       owner,
       repo,
-      first: limit,
+      per_page: limit,
     });
 
-    return response;
+    return response.data.workflow_runs;
   } catch (error) {
     console.error("Error fetching workflow runs:", error);
+
+    // Check if it's a rate limiting error
+    if (error instanceof Error && error.message.includes("rate limit")) {
+      throw new Error(
+        `Rate limit exceeded. Please add a GitHub Personal Access Token to increase your rate limit from 60 to 5,000 requests per hour.`
+      );
+    }
+
     throw new Error(
       `Failed to fetch workflow runs for ${owner}/${repo}. Make sure the repository exists and is public.`
     );

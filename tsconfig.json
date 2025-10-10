@@ -3,7 +3,13 @@
     "target": "ES2022",
     "useDefineForClassFields": true,
     "module": "ESNext",
-    "lib": ["ES2022", "DOM", "DOM.Iterable", "ES2015.Generator"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable",
+      "ES2015.Generator",
+      "ES2015.Iterable"
+    ],
     "types": ["vite/client", "crank"],
     "skipLibCheck": true,
 
@@ -13,6 +19,7 @@
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
     "noEmit": true,
+    "downlevelIteration": true,
 
     /* Linting */
     "strict": true,

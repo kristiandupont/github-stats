@@ -11,6 +11,13 @@ interface WorkflowRunsTableProps {
 }
 
 export function WorkflowRunsTable({ runs, isLoading }: WorkflowRunsTableProps) {
+  console.log(
+    "WorkflowRunsTable received runs:",
+    runs,
+    "isLoading:",
+    isLoading
+  );
+
   if (isLoading) {
     return (
       <div class="flex justify-center items-center py-8">
@@ -54,14 +61,14 @@ export function WorkflowRunsTable({ runs, isLoading }: WorkflowRunsTableProps) {
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
           {runs.map((run) => {
-            const duration = calculateDuration(run.createdAt, run.updatedAt);
+            const duration = calculateDuration(run.created_at, run.updated_at);
             const formattedDuration = formatDuration(duration);
             const statusColor =
-              run.conclusion === "SUCCESS"
+              run.conclusion === "success"
                 ? "text-green-600"
-                : run.conclusion === "FAILURE"
+                : run.conclusion === "failure"
                 ? "text-red-600"
-                : run.status === "IN_PROGRESS"
+                : run.status === "in_progress"
                 ? "text-blue-600"
                 : "text-gray-600";
 
@@ -79,25 +86,27 @@ export function WorkflowRunsTable({ runs, isLoading }: WorkflowRunsTableProps) {
                   </span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {run.pullRequests.nodes.length > 0 ? (
+                  {run.pull_requests.length > 0 ? (
                     <a
-                      href={run.pullRequests.nodes[0].url}
+                      href={run.pull_requests[0].url
+                        .replace("api.github.com/repos/", "github.com/")
+                        .replace("/pulls/", "/pull/")}
                       target="_blank"
                       rel="noopener noreferrer"
                       class="text-blue-600 hover:text-blue-800 underline"
                     >
-                      #{run.pullRequests.nodes[0].number}
+                      #{run.pull_requests[0].number}
                     </a>
                   ) : (
                     <span class="text-gray-400">-</span>
                   )}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {new Date(run.createdAt).toLocaleString()}
+                  {new Date(run.created_at).toLocaleString()}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   <a
-                    href={run.url}
+                    href={run.html_url}
                     target="_blank"
                     rel="noopener noreferrer"
                     class="text-blue-600 hover:text-blue-800 underline"
