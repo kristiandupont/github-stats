@@ -5,6 +5,7 @@ import { renderer } from "@b9g/crank/dom";
 import type { Context } from "@b9g/crank";
 import { RepositoryInput } from "./components/RepositoryInput";
 import { WorkflowRunsTable } from "./components/WorkflowRunsTable";
+import { BuildTimeChart } from "./components/BuildTimeChart";
 import { TokenManager } from "./components/TokenManager";
 import { fetchWorkflowRuns, type WorkflowRun } from "./services/github";
 
@@ -14,6 +15,7 @@ interface AppState {
   workflowRuns: WorkflowRun[];
   repository: { owner: string; name: string } | null;
   hasToken: boolean;
+  viewMode: "table" | "chart";
 }
 
 function* Home(this: Context) {
@@ -23,6 +25,7 @@ function* Home(this: Context) {
     workflowRuns: [],
     repository: null,
     hasToken: !!localStorage.getItem("github-token"),
+    viewMode: "table",
   };
 
   const handleFetch = async (owner: string, repo: string) => {
@@ -33,7 +36,7 @@ function* Home(this: Context) {
     this.refresh();
 
     try {
-      const workflowRuns = await fetchWorkflowRuns(owner, repo, 20);
+      const workflowRuns = await fetchWorkflowRuns(owner, repo, 500);
       console.log("Fetched workflow runs:", workflowRuns);
 
       state.workflowRuns = workflowRuns;
@@ -48,6 +51,11 @@ function* Home(this: Context) {
 
   const handleTokenChange = (token: string | null) => {
     state.hasToken = !!token;
+    this.refresh();
+  };
+
+  const handleViewModeChange = (mode: "table" | "chart") => {
+    state.viewMode = mode;
     this.refresh();
   };
 
@@ -80,16 +88,47 @@ function* Home(this: Context) {
                     Workflow Runs for {state.repository.owner}/
                     {state.repository.name}
                   </h2>
-                  <p class="text-gray-600">
+                  <p class="text-gray-600 mb-4">
                     Showing {state.workflowRuns.length} recent workflow runs
                   </p>
+
+                  {/* View Mode Toggle */}
+                  <div class="flex space-x-2 mb-4">
+                    <button
+                      class={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                        state.viewMode === "table"
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                      }`}
+                      onclick={() => handleViewModeChange("table")}
+                    >
+                      Table View
+                    </button>
+                    <button
+                      class={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                        state.viewMode === "chart"
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                      }`}
+                      onclick={() => handleViewModeChange("chart")}
+                    >
+                      Chart View
+                    </button>
+                  </div>
                 </div>
               )}
 
-              <WorkflowRunsTable
-                runs={state.workflowRuns}
-                isLoading={state.isLoading}
-              />
+              {state.viewMode === "table" ? (
+                <WorkflowRunsTable
+                  runs={state.workflowRuns}
+                  isLoading={state.isLoading}
+                />
+              ) : (
+                <BuildTimeChart
+                  runs={state.workflowRuns}
+                  isLoading={state.isLoading}
+                />
+              )}
             </div>
           </div>
         </div>

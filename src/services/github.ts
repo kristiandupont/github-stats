@@ -79,6 +79,16 @@ export function calculateDuration(
   return Math.round((end.getTime() - start.getTime()) / (1000 * 60));
 }
 
+// Helper function to calculate duration in seconds
+export function calculateDurationInSeconds(
+  createdAt: string,
+  updatedAt: string
+): number {
+  const start = new Date(createdAt);
+  const end = new Date(updatedAt);
+  return Math.round((end.getTime() - start.getTime()) / 1000);
+}
+
 // Helper function to format duration for display
 export function formatDuration(minutes: number): string {
   if (minutes < 60) {
