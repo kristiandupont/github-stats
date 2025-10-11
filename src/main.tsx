@@ -3,22 +3,20 @@
 import "./style.css";
 import { renderer } from "@b9g/crank/dom";
 import type { Context, Component } from "@b9g/crank";
-import { RepositoryInput } from "./components/RepositoryInput";
-import { WorkflowRunsTable } from "./components/WorkflowRunsTable";
-import { BuildTimeChart } from "./components/BuildTimeChart";
-import { AuthStatus } from "./components/AuthStatus";
+import { Sidebar } from "./components/Sidebar";
+import { HomePage } from "./pages/HomePage";
+import { WorkflowRunsPage } from "./pages/WorkflowRunsPage";
+import { PullRequestsPage } from "./pages/PullRequestsPage";
 import { LoginDialog } from "./components/LoginDialog";
-import { fetchWorkflowRuns, type WorkflowRun } from "./services/github";
 import { AuthService } from "./services/auth";
+import { storageService } from "./services/storage";
 
 interface AppState {
-  isLoading: boolean;
-  error: string | null;
-  workflowRuns: WorkflowRun[];
-  repository: { owner: string; name: string } | null;
+  selectedRepository: { owner: string; name: string } | null;
   hasToken: boolean;
-  viewMode: "table" | "chart";
   isLoginDialogOpen: boolean;
+  error: string | null;
+  isLoading: boolean;
 }
 
 // OAuth Callback component
@@ -54,97 +52,145 @@ function* AuthCallback(this: Context) {
 // Routes configuration
 const routes: Record<string, Component> = {
   "/": Home,
+  "/workflow-runs": WorkflowRuns,
+  "/pull-requests": PullRequests,
   "/auth/callback": AuthCallback,
 };
 
 function* RoutedApp(this: Context) {
-  const onPopState = () => this.refresh();
-  window.addEventListener("popstate", onPopState);
+  // Initialize IndexedDB
+  const initStorage = async () => {
+    try {
+      await storageService.init();
+    } catch (error) {
+      console.warn("Failed to initialize IndexedDB:", error);
+    }
+  };
+  initStorage();
+
+  // App-level state
+  let isLoginDialogOpen = false;
+
+  // Set up hash change listener
+  const handleHashChange = () => {
+    this.refresh();
+  };
+  window.addEventListener("hashchange", handleHashChange);
+
+  const handleNavigate = (path: string) => {
+    window.location.hash = path;
+  };
+
+  const handleLoginClick = () => {
+    isLoginDialogOpen = true;
+    this.refresh();
+  };
+
+  const handleLogout = () => {
+    AuthService.logout();
+    this.refresh();
+  };
+
+  const handleLoginDialogClose = () => {
+    isLoginDialogOpen = false;
+    this.refresh();
+  };
+
+  const handleAuthSuccess = () => {
+    isLoginDialogOpen = false;
+    this.refresh();
+  };
+
+  // Get current path
+  const getCurrentPath = () => {
+    const hash = window.location.hash.substring(1) || "/";
+    const normalizedPath = hash.startsWith("/") ? hash : "/" + hash;
+    return normalizedPath;
+  };
 
   try {
     while (true) {
       // Use hash-based routing for GitHub Pages compatibility
-      const hash = window.location.hash.substring(1) || "/";
-      // Ensure path starts with / for route matching
-      const normalizedPath = hash.startsWith("/") ? hash : "/" + hash;
+      const normalizedPath = getCurrentPath();
       const Route = routes[normalizedPath];
 
       if (Route) {
-        yield <Route />;
+        yield (
+          <div class="flex h-screen bg-gray-100">
+            <Sidebar
+              currentPath={normalizedPath}
+              onNavigate={handleNavigate}
+              onLoginClick={handleLoginClick}
+              onLogout={handleLogout}
+            />
+            <div class="flex-1 overflow-auto">
+              <Route />
+            </div>
+            <LoginDialog
+              isOpen={isLoginDialogOpen}
+              onClose={handleLoginDialogClose}
+              onAuthSuccess={handleAuthSuccess}
+            />
+          </div>
+        );
       } else {
         // 404 - redirect to home
         yield (
-          <div class="flex h-screen items-center justify-center">
-            <div class="text-center">
-              <h1 class="text-2xl font-bold text-gray-800 mb-4">
-                Page Not Found
-              </h1>
-              <p class="text-gray-600 mb-4">
-                The page you're looking for doesn't exist.
-              </p>
-              <button
-                onclick={() => {
-                  window.location.hash = "/";
-                  this.refresh();
-                }}
-                class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                Go Home
-              </button>
+          <div class="flex h-screen bg-gray-100">
+            <Sidebar
+              currentPath="/"
+              onNavigate={handleNavigate}
+              onLoginClick={handleLoginClick}
+              onLogout={handleLogout}
+            />
+            <div class="flex-1 overflow-auto flex items-center justify-center">
+              <div class="text-center">
+                <h1 class="text-2xl font-bold text-gray-800 mb-4">
+                  Page Not Found
+                </h1>
+                <p class="text-gray-600 mb-4">
+                  The page you're looking for doesn't exist.
+                </p>
+                <button
+                  onclick={() => {
+                    window.location.hash = "/";
+                  }}
+                  class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  Go Home
+                </button>
+              </div>
             </div>
+            <LoginDialog
+              isOpen={isLoginDialogOpen}
+              onClose={handleLoginDialogClose}
+              onAuthSuccess={handleAuthSuccess}
+            />
           </div>
         );
       }
     }
   } finally {
-    window.removeEventListener("popstate", onPopState);
+    window.removeEventListener("hashchange", handleHashChange);
   }
 }
 
 function* Home(this: Context) {
   let state: AppState = {
-    isLoading: false,
-    error: null,
-    workflowRuns: [],
-    repository: null,
+    selectedRepository: null,
     hasToken: !!localStorage.getItem("github-token"),
-    viewMode: "table",
     isLoginDialogOpen: false,
+    error: null,
+    isLoading: false,
   };
 
-  const handleFetch = async (owner: string, repo: string) => {
-    state.isLoading = true;
-    state.error = null;
-    state.workflowRuns = [];
-    state.repository = { owner, name: repo };
-    this.refresh();
-
-    try {
-      const workflowRuns = await fetchWorkflowRuns(owner, repo, 500);
-      console.log("Fetched workflow runs:", workflowRuns);
-
-      state.workflowRuns = workflowRuns;
-      state.isLoading = false;
-    } catch (error) {
-      state.error =
-        error instanceof Error ? error.message : "An unknown error occurred";
-      state.isLoading = false;
-    }
-    this.refresh();
-  };
-
-  const handleAuthSuccess = () => {
-    state.hasToken = !!localStorage.getItem("github-token");
-    this.refresh();
-  };
-
-  const handleLogout = () => {
-    state.hasToken = false;
-    this.refresh();
-  };
-
-  const handleLoginClick = () => {
-    state.isLoginDialogOpen = true;
+  const handleRepositorySelect = (owner: string, repo: string) => {
+    state.selectedRepository = { owner, name: repo };
+    // Store in localStorage for persistence
+    localStorage.setItem(
+      "selected-repository",
+      JSON.stringify({ owner, name: repo })
+    );
     this.refresh();
   };
 
@@ -153,107 +199,88 @@ function* Home(this: Context) {
     this.refresh();
   };
 
-  const handleViewModeChange = (mode: "table" | "chart") => {
-    state.viewMode = mode;
-    this.refresh();
-  };
+  // Load saved repository on mount
+  const savedRepo = localStorage.getItem("selected-repository");
+  if (savedRepo && !state.selectedRepository) {
+    try {
+      state.selectedRepository = JSON.parse(savedRepo);
+    } catch (e) {
+      console.warn("Failed to parse saved repository:", e);
+    }
+  }
 
   while (true) {
     yield (
-      <div class="flex flex-col font-extralight">
-        <div class="flex h-full w-full items-center justify-center">
-          <div class="flex flex-col items-start justify-start py-2 h-full w-full max-w-screen-lg space-y-6">
-            <h1 class="text-2xl bg-slate-50 rounded w-full py-3 px-6 text-slate-900 shadow select-none">
-              GitHub Stats
-            </h1>
-            <div class="w-full">
-              <AuthStatus
-                onLoginClick={handleLoginClick}
-                onLogout={handleLogout}
-              />
-              <RepositoryInput
-                onFetch={handleFetch}
-                isLoading={state.isLoading}
-              />
+      <HomePage
+        onRepositorySelect={handleRepositorySelect}
+        onLoginDialogClose={handleLoginDialogClose}
+        isLoginDialogOpen={state.isLoginDialogOpen}
+        isLoading={state.isLoading}
+        error={null}
+        selectedRepository={state.selectedRepository}
+      />
+    );
+  }
+}
 
-              {state.error && (
-                <div class="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
-                  <div class="text-red-800">
-                    <strong>Error:</strong> {state.error}
-                  </div>
-                </div>
-              )}
+function* WorkflowRuns(this: Context) {
+  let state: AppState = {
+    selectedRepository: null,
+    hasToken: !!localStorage.getItem("github-token"),
+    isLoginDialogOpen: false,
+    error: null,
+    isLoading: false,
+  };
 
-              {state.repository && (
-                <div class="mb-6">
-                  <h2 class="text-2xl font-bold text-gray-800 mb-2">
-                    Workflow Runs for {state.repository.owner}/
-                    {state.repository.name}
-                  </h2>
-                  <p class="text-gray-600 mb-4">
-                    Showing {state.workflowRuns.length} recent workflow runs
-                  </p>
+  // Load saved repository on mount
+  const savedRepo = localStorage.getItem("selected-repository");
+  if (savedRepo && !state.selectedRepository) {
+    try {
+      state.selectedRepository = JSON.parse(savedRepo);
+    } catch (e) {
+      console.warn("Failed to parse saved repository:", e);
+    }
+  }
 
-                  {/* View Mode Toggle */}
-                  <div class="flex space-x-2 mb-4">
-                    <button
-                      class={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                        state.viewMode === "table"
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                      }`}
-                      onclick={() => handleViewModeChange("table")}
-                    >
-                      Table View
-                    </button>
-                    <button
-                      class={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                        state.viewMode === "chart"
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                      }`}
-                      onclick={() => handleViewModeChange("chart")}
-                    >
-                      Chart View
-                    </button>
-                  </div>
-                </div>
-              )}
+  while (true) {
+    yield (
+      <WorkflowRunsPage
+        selectedRepository={state.selectedRepository}
+        onError={() => {}}
+      />
+    );
+  }
+}
 
-              {state.viewMode === "table" ? (
-                <WorkflowRunsTable
-                  runs={state.workflowRuns}
-                  isLoading={state.isLoading}
-                />
-              ) : (
-                <BuildTimeChart
-                  runs={state.workflowRuns}
-                  isLoading={state.isLoading}
-                />
-              )}
-            </div>
-          </div>
-        </div>
+function* PullRequests(this: Context) {
+  let state: AppState = {
+    selectedRepository: null,
+    hasToken: !!localStorage.getItem("github-token"),
+    isLoginDialogOpen: false,
+    error: null,
+    isLoading: false,
+  };
 
-        <LoginDialog
-          isOpen={state.isLoginDialogOpen}
-          onClose={handleLoginDialogClose}
-          onAuthSuccess={handleAuthSuccess}
-        />
-        {console.log(
-          "Main render - isLoginDialogOpen:",
-          state.isLoginDialogOpen
-        )}
-      </div>
+  // Load saved repository on mount
+  const savedRepo = localStorage.getItem("selected-repository");
+  if (savedRepo && !state.selectedRepository) {
+    try {
+      state.selectedRepository = JSON.parse(savedRepo);
+    } catch (e) {
+      console.warn("Failed to parse saved repository:", e);
+    }
+  }
+
+  while (true) {
+    yield (
+      <PullRequestsPage
+        selectedRepository={state.selectedRepository}
+        onError={() => {}}
+      />
     );
   }
 }
 
 (async () => {
-  await renderer.render(
-    <div>
-      <RoutedApp />
-    </div>,
-    document.body
-  );
+  await renderer.render(<RoutedApp />, document.body);
 })();

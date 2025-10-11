@@ -1,11 +1,11 @@
 /** @jsxImportSource @b9g/crank */
 
 interface RepositoryInputProps {
-  onFetch: (owner: string, repo: string) => void;
+  onSelect: (owner: string, repo: string) => void;
   isLoading: boolean;
 }
 
-export function RepositoryInput({ onFetch, isLoading }: RepositoryInputProps) {
+export function RepositoryInput({ onSelect, isLoading }: RepositoryInputProps) {
   const handleSubmit = (event: Event) => {
     event.preventDefault();
     const form = event.target as HTMLFormElement;
@@ -14,7 +14,7 @@ export function RepositoryInput({ onFetch, isLoading }: RepositoryInputProps) {
     const repo = formData.get("repo") as string;
 
     if (owner && repo) {
-      onFetch(owner.trim(), repo.trim());
+      onSelect(owner.trim(), repo.trim());
     }
   };
 
@@ -68,14 +68,14 @@ export function RepositoryInput({ onFetch, isLoading }: RepositoryInputProps) {
                 : "bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
             }`}
           >
-            {isLoading ? "Fetching..." : "Fetch Workflow Runs"}
+            {isLoading ? "Selecting..." : "Select Repository"}
           </button>
         </div>
       </form>
       <div class="mt-4 text-sm text-gray-600">
         <p>
-          Enter a public GitHub repository to view its CI/CD workflow run
-          statistics.
+          Select a public GitHub repository to analyze its workflow runs and
+          pull requests.
         </p>
         <p class="mt-1">
           Example:{" "}
