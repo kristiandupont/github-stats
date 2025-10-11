@@ -132,9 +132,9 @@ export function* LoginDialog(
                     ✓ OAuth Authorization Successful!
                   </p>
                   <p>
-                    You've successfully authorized the app with GitHub. Now
-                    create a Personal Access Token below to complete the
-                    authentication.
+                    You've successfully authorized the app with GitHub. You can
+                    now close this dialog and use the app with higher rate
+                    limits.
                   </p>
                 </div>
               </div>
@@ -142,11 +142,12 @@ export function* LoginDialog(
 
             <div class="bg-blue-50 border border-blue-200 rounded-md p-4 mb-4">
               <div class="text-blue-800 text-sm">
-                <p class="font-medium mb-1">OAuth + PAT Authentication</p>
+                <p class="font-medium mb-1">
+                  Choose Your Authentication Method
+                </p>
                 <p>
-                  This app uses a hybrid approach: OAuth for authorization +
-                  Personal Access Token for API access. Click "Login with
-                  GitHub" to authorize, then create a PAT below.
+                  You can authenticate using either OAuth or a Personal Access
+                  Token.
                 </p>
               </div>
             </div>
