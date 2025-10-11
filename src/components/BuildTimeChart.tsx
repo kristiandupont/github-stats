@@ -88,7 +88,14 @@ export function* BuildTimeChart(
   this.after((element) => {
     const chartElement = element.querySelector(`#${chartId}`);
     if (chartElement) {
-      renderBuildTimeChart(chartData, chartId);
+      const cleanup = renderBuildTimeChart(chartData, chartId);
+      // Store cleanup function for when component unmounts
+      if (cleanup) {
+        this.cleanup = () => {
+          cleanup();
+          return Promise.resolve();
+        };
+      }
     }
   });
 
@@ -112,7 +119,8 @@ export function* BuildTimeChart(
       </div>
       <div
         id={chartId}
-        class="w-full h-96 border border-gray-200 rounded-lg bg-white"
+        class="w-full h-96 min-h-64 border border-gray-200 rounded-lg bg-white"
+        style="resize: both; overflow: hidden;"
       ></div>
     </div>
   );
@@ -125,117 +133,163 @@ export function renderBuildTimeChart(data: ChartDataPoint[], chartId: string) {
 
   if (data.length === 0) return;
 
+  const container = d3.select(`#${chartId}`);
   const margin = { top: 20, right: 30, bottom: 40, left: 60 };
-  const width = 800 - margin.left - margin.right;
-  const height = 400 - margin.top - margin.bottom;
 
-  const svg = d3
-    .select(`#${chartId}`)
-    .append("svg")
-    .attr("width", width + margin.left + margin.right)
-    .attr("height", height + margin.top + margin.bottom);
+  // Function to get current container dimensions
+  const getDimensions = () => {
+    const containerNode = container.node() as HTMLElement;
+    const containerRect = containerNode?.getBoundingClientRect();
+    const fullWidth = containerRect?.width || 800;
+    const fullHeight = containerRect?.height || 400;
+    const width = fullWidth - margin.left - margin.right;
+    const height = fullHeight - margin.top - margin.bottom;
+    return { width, height, fullWidth, fullHeight };
+  };
 
-  const g = svg
-    .append("g")
-    .attr("transform", `translate(${margin.left},${margin.top})`);
+  // Function to create/update the chart
+  const updateChart = () => {
+    const { width, height, fullWidth, fullHeight } = getDimensions();
 
-  // Scales
-  const xScale = d3
-    .scaleTime()
-    .domain(d3.extent(data, (d) => d.date) as [Date, Date])
-    .range([0, width]);
+    // Remove existing SVG if it exists
+    container.selectAll("svg").remove();
 
-  const yScale = d3
-    .scaleLinear()
-    .domain([0, d3.max(data, (d) => d.duration) || 0])
-    .range([height, 0]);
+    const svg = container
+      .append("svg")
+      .attr("width", fullWidth)
+      .attr("height", fullHeight);
 
-  // Line generator
-  const line = d3
-    .line<ChartDataPoint>()
-    .x((d) => xScale(d.date))
-    .y((d) => yScale(d.duration))
-    .curve(d3.curveMonotoneX);
+    const g = svg
+      .append("g")
+      .attr("transform", `translate(${margin.left},${margin.top})`);
 
-  // Add the line
-  g.append("path")
-    .datum(data)
-    .attr("fill", "none")
-    .attr("stroke", "#3b82f6")
-    .attr("stroke-width", 2)
-    .attr("d", line);
+    // Scales
+    const xScale = d3
+      .scaleTime()
+      .domain(d3.extent(data, (d) => d.date) as [Date, Date])
+      .range([0, width]);
 
-  // Add dots for each data point
-  const dots = g
-    .selectAll(".dot")
-    .data(data)
-    .enter()
-    .append("circle")
-    .attr("class", "dot")
-    .attr("cx", (d) => xScale(d.date))
-    .attr("cy", (d) => yScale(d.duration))
-    .attr("r", 4)
-    .attr("fill", "#3b82f6")
-    .attr("stroke", "#ffffff")
-    .attr("stroke-width", 2);
+    const yScale = d3
+      .scaleLinear()
+      .domain([0, d3.max(data, (d) => d.duration) || 0])
+      .range([height, 0]);
 
-  // Add tooltips
-  const tooltip = d3
-    .select("body")
-    .append("div")
-    .attr("class", "tooltip")
-    .style("position", "absolute")
-    .style("background", "rgba(0, 0, 0, 0.8)")
-    .style("color", "white")
-    .style("padding", "8px")
-    .style("border-radius", "4px")
-    .style("font-size", "12px")
-    .style("pointer-events", "none")
-    .style("opacity", 0);
+    // Line generator
+    const line = d3
+      .line<ChartDataPoint>()
+      .x((d) => xScale(d.date))
+      .y((d) => yScale(d.duration))
+      .curve(d3.curveMonotoneX);
 
-  dots
-    .on("mouseover", function (event, d) {
-      tooltip.transition().duration(200).style("opacity", 0.9);
-      const prInfo = d.prNumber ? `PR #${d.prNumber}` : "Non-PR Build";
-      const prTitle = d.prTitle ? `<br/>Title: ${d.prTitle}` : "";
-      tooltip
-        .html(
-          `<strong>${prInfo}</strong><br/>
-           Duration: ${d.duration} seconds<br/>
-           Date: ${d.date.toLocaleDateString()}${prTitle}`
-        )
-        .style("left", event.pageX + 10 + "px")
-        .style("top", event.pageY - 10 + "px");
-    })
-    .on("mouseout", function () {
-      tooltip.transition().duration(500).style("opacity", 0);
-    });
+    // Add the line
+    g.append("path")
+      .datum(data)
+      .attr("fill", "none")
+      .attr("stroke", "#3b82f6")
+      .attr("stroke-width", 2)
+      .attr("d", line);
 
-  // Add X axis
-  g.append("g")
-    .attr("transform", `translate(0,${height})`)
-    .call(
-      d3.axisBottom(xScale).tickFormat((d) => d3.timeFormat("%m/%d")(d as Date))
-    );
+    // Add dots for each data point
+    const dots = g
+      .selectAll(".dot")
+      .data(data)
+      .enter()
+      .append("circle")
+      .attr("class", "dot")
+      .attr("cx", (d) => xScale(d.date))
+      .attr("cy", (d) => yScale(d.duration))
+      .attr("r", 4)
+      .attr("fill", "#3b82f6")
+      .attr("stroke", "#ffffff")
+      .attr("stroke-width", 2);
 
-  // Add Y axis
-  g.append("g").call(d3.axisLeft(yScale));
+    // Add tooltips
+    const tooltip = d3
+      .select("body")
+      .append("div")
+      .attr("class", "tooltip")
+      .style("position", "absolute")
+      .style("background", "rgba(0, 0, 0, 0.8)")
+      .style("color", "white")
+      .style("padding", "8px")
+      .style("border-radius", "4px")
+      .style("font-size", "12px")
+      .style("pointer-events", "none")
+      .style("opacity", 0);
 
-  // Add axis labels
-  g.append("text")
-    .attr("transform", "rotate(-90)")
-    .attr("y", 0 - margin.left)
-    .attr("x", 0 - height / 2)
-    .attr("dy", "1em")
-    .style("text-anchor", "middle")
-    .style("font-size", "12px")
-    .style("fill", "#666")
-    .text("Build Time (seconds)");
+    dots
+      .on("mouseover", function (event, d) {
+        tooltip.transition().duration(200).style("opacity", 0.9);
+        const prInfo = d.prNumber ? `PR #${d.prNumber}` : "Non-PR Build";
+        const prTitle = d.prTitle ? `<br/>Title: ${d.prTitle}` : "";
+        tooltip
+          .html(
+            `<strong>${prInfo}</strong><br/>
+             Duration: ${d.duration} seconds<br/>
+             Date: ${d.date.toLocaleDateString()}${prTitle}`
+          )
+          .style("left", event.pageX + 10 + "px")
+          .style("top", event.pageY - 10 + "px");
+      })
+      .on("mouseout", function () {
+        tooltip.transition().duration(500).style("opacity", 0);
+      });
 
-  g.append("text")
-    .attr("transform", `translate(${width / 2}, ${height + margin.bottom - 5})`)
-    .style("text-anchor", "middle")
-    .style("font-size", "12px")
-    .style("fill", "#666")
-    .text("Date");
+    // Add X axis
+    g.append("g")
+      .attr("transform", `translate(0,${height})`)
+      .call(
+        d3
+          .axisBottom(xScale)
+          .tickFormat((d) => d3.timeFormat("%m/%d")(d as Date))
+      );
+
+    // Add Y axis
+    g.append("g").call(d3.axisLeft(yScale));
+
+    // Add axis labels
+    g.append("text")
+      .attr("transform", "rotate(-90)")
+      .attr("y", 0 - margin.left)
+      .attr("x", 0 - height / 2)
+      .attr("dy", "1em")
+      .style("text-anchor", "middle")
+      .style("font-size", "12px")
+      .style("fill", "#666")
+      .text("Build Time (seconds)");
+
+    g.append("text")
+      .attr(
+        "transform",
+        `translate(${width / 2}, ${height + margin.bottom - 5})`
+      )
+      .style("text-anchor", "middle")
+      .style("font-size", "12px")
+      .style("fill", "#666")
+      .text("Date");
+  };
+
+  // Initial render
+  updateChart();
+
+  // Set up ResizeObserver to handle container size changes
+  const resizeObserver = new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      if (entry.target.id === chartId) {
+        updateChart();
+      }
+    }
+  });
+
+  // Start observing the container
+  const containerElement = container.node() as HTMLElement;
+  if (containerElement) {
+    resizeObserver.observe(containerElement);
+  }
+
+  // Cleanup function to disconnect observer when component unmounts
+  // This will be called by Crank when the component is removed
+  return () => {
+    resizeObserver.disconnect();
+  };
 }
