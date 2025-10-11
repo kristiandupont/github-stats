@@ -2,12 +2,14 @@
 
 import "./style.css";
 import { renderer } from "@b9g/crank/dom";
-import type { Context } from "@b9g/crank";
+import type { Context, Component } from "@b9g/crank";
 import { RepositoryInput } from "./components/RepositoryInput";
 import { WorkflowRunsTable } from "./components/WorkflowRunsTable";
 import { BuildTimeChart } from "./components/BuildTimeChart";
-import { TokenManager } from "./components/TokenManager";
+import { AuthStatus } from "./components/AuthStatus";
+import { LoginDialog } from "./components/LoginDialog";
 import { fetchWorkflowRuns, type WorkflowRun } from "./services/github";
+import { AuthService } from "./services/auth";
 
 interface AppState {
   isLoading: boolean;
@@ -16,6 +18,87 @@ interface AppState {
   repository: { owner: string; name: string } | null;
   hasToken: boolean;
   viewMode: "table" | "chart";
+  isLoginDialogOpen: boolean;
+}
+
+// OAuth Callback component
+function* AuthCallback(this: Context) {
+  const handleCallback = () => {
+    const success = AuthService.handleOAuthCallback();
+    if (success) {
+      // Redirect to home page after successful auth
+      window.history.pushState({}, "", "/");
+      this.refresh();
+    } else {
+      // Show error or redirect to home
+      window.history.pushState({}, "", "/");
+      this.refresh();
+    }
+  };
+
+  // Handle callback on mount
+  handleCallback();
+
+  while (true) {
+    yield (
+      <div class="flex h-screen items-center justify-center">
+        <div class="text-center">
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p class="text-gray-600">Processing authentication...</p>
+        </div>
+      </div>
+    );
+  }
+}
+
+// Routes configuration
+const routes: Record<string, Component> = {
+  "/": Home,
+  "/auth/callback": AuthCallback,
+};
+
+function* RoutedApp(this: Context) {
+  const onPopState = () => this.refresh();
+  window.addEventListener("popstate", onPopState);
+
+  try {
+    while (true) {
+      const basePath = import.meta.env.BASE_URL;
+      const path = window.location.pathname.substring(basePath.length) || "/";
+      // Ensure path starts with / for route matching
+      const normalizedPath = path.startsWith("/") ? path : "/" + path;
+      const Route = routes[normalizedPath];
+
+      if (Route) {
+        yield <Route />;
+      } else {
+        // 404 - redirect to home
+        yield (
+          <div class="flex h-screen items-center justify-center">
+            <div class="text-center">
+              <h1 class="text-2xl font-bold text-gray-800 mb-4">
+                Page Not Found
+              </h1>
+              <p class="text-gray-600 mb-4">
+                The page you're looking for doesn't exist.
+              </p>
+              <button
+                onclick={() => {
+                  window.history.pushState({}, "", "/");
+                  this.refresh();
+                }}
+                class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                Go Home
+              </button>
+            </div>
+          </div>
+        );
+      }
+    }
+  } finally {
+    window.removeEventListener("popstate", onPopState);
+  }
 }
 
 function* Home(this: Context) {
@@ -26,6 +109,7 @@ function* Home(this: Context) {
     repository: null,
     hasToken: !!localStorage.getItem("github-token"),
     viewMode: "table",
+    isLoginDialogOpen: false,
   };
 
   const handleFetch = async (owner: string, repo: string) => {
@@ -49,8 +133,23 @@ function* Home(this: Context) {
     this.refresh();
   };
 
-  const handleTokenChange = (token: string | null) => {
-    state.hasToken = !!token;
+  const handleAuthSuccess = () => {
+    state.hasToken = !!localStorage.getItem("github-token");
+    this.refresh();
+  };
+
+  const handleLogout = () => {
+    state.hasToken = false;
+    this.refresh();
+  };
+
+  const handleLoginClick = () => {
+    state.isLoginDialogOpen = true;
+    this.refresh();
+  };
+
+  const handleLoginDialogClose = () => {
+    state.isLoginDialogOpen = false;
     this.refresh();
   };
 
@@ -68,7 +167,10 @@ function* Home(this: Context) {
               GitHub Stats
             </h1>
             <div class="w-full">
-              <TokenManager onTokenChange={handleTokenChange} />
+              <AuthStatus
+                onLoginClick={handleLoginClick}
+                onLogout={handleLogout}
+              />
               <RepositoryInput
                 onFetch={handleFetch}
                 isLoading={state.isLoading}
@@ -132,6 +234,16 @@ function* Home(this: Context) {
             </div>
           </div>
         </div>
+
+        <LoginDialog
+          isOpen={state.isLoginDialogOpen}
+          onClose={handleLoginDialogClose}
+          onAuthSuccess={handleAuthSuccess}
+        />
+        {console.log(
+          "Main render - isLoginDialogOpen:",
+          state.isLoginDialogOpen
+        )}
       </div>
     );
   }
@@ -140,7 +252,7 @@ function* Home(this: Context) {
 (async () => {
   await renderer.render(
     <div>
-      <Home />
+      <RoutedApp />
     </div>,
     document.body
   );

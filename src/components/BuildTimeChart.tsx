@@ -119,8 +119,7 @@ export function* BuildTimeChart(
       </div>
       <div
         id={chartId}
-        class="w-full h-96 min-h-64 border border-gray-200 rounded-lg bg-white"
-        style="resize: both; overflow: hidden;"
+        class="w-full h-96 min-h-64 border border-gray-200 rounded-lg bg-white overflow-hidden"
       ></div>
     </div>
   );
