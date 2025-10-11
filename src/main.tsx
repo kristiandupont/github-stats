@@ -61,7 +61,7 @@ function* Home(this: Context) {
 
   while (true) {
     yield (
-      <div class="flex flex-col">
+      <div class="flex flex-col font-extralight">
         <div class="flex h-full w-full items-center justify-center">
           <div class="flex flex-col items-start justify-start py-2 h-full w-full max-w-screen-lg space-y-6">
             <h1 class="text-2xl bg-slate-50 rounded w-full py-3 px-6 text-slate-900 shadow select-none">
