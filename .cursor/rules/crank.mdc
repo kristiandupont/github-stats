@@ -1,0 +1,27 @@
+---
+alwaysApply: true
+---
+
+This project uses Crank for rendering the UI. That is similar to React, but different in important ways.
+Components should have a first parameter `this: Context` that is the context of the component.
+
+Note this pattern for updating state (prefer the new way!):
+
+```
+// Before: Easy to forget refresh()
+const onclick = () => {
+  count++;
+  this.refresh(); // Oops, might forget this!
+};
+
+// Now: Impossible to forget
+const onclick = () => this.refresh(() => count++);
+```
+
+Look up documentation when you need to know something.
+
+- https://crank.js.org/guides/getting-started/
+- https://crank.js.org/guides/components/
+- https://crank.js.org/guides/handling-events/
+- https://crank.js.org/guides/lifecycles/
+- https://crank.js.org/guides/reusable-logic/
