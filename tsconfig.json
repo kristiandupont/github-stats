@@ -10,7 +10,7 @@
       "ES2015.Generator",
       "ES2015.Iterable"
     ],
-    "types": ["vite/client", "crank"],
+    "types": ["vite/client"],
     "skipLibCheck": true,
 
     /* Bundler mode */

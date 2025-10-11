@@ -75,7 +75,7 @@ export function WorkflowRunsTable({ runs, isLoading }: WorkflowRunsTableProps) {
             return (
               <tr key={run.id} class="hover:bg-gray-50">
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  {run.name}
+                  {run.name || "Unknown Workflow"}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                   {formattedDuration}
@@ -86,7 +86,7 @@ export function WorkflowRunsTable({ runs, isLoading }: WorkflowRunsTableProps) {
                   </span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {run.pull_requests.length > 0 ? (
+                  {run.pull_requests && run.pull_requests.length > 0 ? (
                     <a
                       href={run.pull_requests[0].url
                         .replace("api.github.com/repos/", "github.com/")

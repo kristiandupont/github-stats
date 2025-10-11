@@ -27,11 +27,11 @@ function* AuthCallback(this: Context) {
     const success = AuthService.handleOAuthCallback();
     if (success) {
       // Redirect to home page after successful auth
-      window.history.pushState({}, "", "/");
+      window.location.hash = "/";
       this.refresh();
     } else {
       // Show error or redirect to home
-      window.history.pushState({}, "", "/");
+      window.location.hash = "/";
       this.refresh();
     }
   };
@@ -63,10 +63,10 @@ function* RoutedApp(this: Context) {
 
   try {
     while (true) {
-      const basePath = import.meta.env.BASE_URL;
-      const path = window.location.pathname.substring(basePath.length) || "/";
+      // Use hash-based routing for GitHub Pages compatibility
+      const hash = window.location.hash.substring(1) || "/";
       // Ensure path starts with / for route matching
-      const normalizedPath = path.startsWith("/") ? path : "/" + path;
+      const normalizedPath = hash.startsWith("/") ? hash : "/" + hash;
       const Route = routes[normalizedPath];
 
       if (Route) {
@@ -84,7 +84,7 @@ function* RoutedApp(this: Context) {
               </p>
               <button
                 onclick={() => {
-                  window.history.pushState({}, "", "/");
+                  window.location.hash = "/";
                   this.refresh();
                 }}
                 class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"

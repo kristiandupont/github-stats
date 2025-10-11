@@ -8,7 +8,7 @@
 // 3. Fill in:
 //    - Application name: "GitHub Stats" (or whatever you prefer)
 //    - Homepage URL: https://kristiandupont.github.io/github-stats (or your domain)
-//    - Authorization callback URL: https://kristiandupont.github.io/github-stats/auth/callback (or your domain + /auth/callback)
+//    - Authorization callback URL: https://kristiandupont.github.io/github-stats/#/auth/callback (or your domain + /#/auth/callback)
 // 4. Copy the Client ID and replace the value below
 // 5. The Client Secret is not needed for public client-side apps
 //
@@ -21,7 +21,7 @@ export class AuthService {
   // Initiate GitHub OAuth Flow (redirect-based)
   static initiateOAuthFlow(): void {
     const redirectUri = encodeURIComponent(
-      window.location.origin + "/auth/callback"
+      window.location.origin + "/#/auth/callback"
     );
     const scope = "public_repo";
     const state = Math.random().toString(36).substring(7);

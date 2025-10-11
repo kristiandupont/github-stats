@@ -1,26 +1,11 @@
 import { Octokit } from "@octokit/rest";
 
-// TypeScript interfaces for GitHub API responses
-export interface WorkflowRun {
-  id: number;
-  name: string;
-  status: string;
-  conclusion: string | null;
-  created_at: string;
-  updated_at: string;
-  html_url: string;
-  workflow_id: number;
-  workflow_url: string;
-  pull_requests: Array<{
-    number: number;
-    url: string;
-    html_url?: string;
-    title?: string;
-  }>;
-  head_branch: string;
-  run_number: number;
-  display_title?: string;
-}
+// Use the actual GitHub API types for better compatibility
+export type WorkflowRun = NonNullable<
+  Awaited<
+    ReturnType<Octokit["rest"]["actions"]["listWorkflowRunsForRepo"]>
+  >["data"]["workflow_runs"][0]
+>;
 
 // Create REST API client - will use token if available, otherwise unauthenticated
 const getOctokitClient = () => {

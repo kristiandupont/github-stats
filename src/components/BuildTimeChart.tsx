@@ -36,7 +36,9 @@ export function* BuildTimeChart(
   const successfulBuilds = runs.filter((run) => run.conclusion === "success");
 
   // Get some stats for better messaging
-  const runsWithPRs = runs.filter((run) => run.pull_requests.length > 0);
+  const runsWithPRs = runs.filter(
+    (run) => run.pull_requests && run.pull_requests.length > 0
+  );
   const prWorkflowRuns = runs.filter((run) => run.name === "Pull Requests");
 
   if (successfulBuilds.length === 0) {
@@ -73,8 +75,14 @@ export function* BuildTimeChart(
   const chartData: ChartDataPoint[] = successfulBuilds.map((run) => ({
     date: new Date(run.created_at),
     duration: calculateDurationInSeconds(run.created_at, run.updated_at),
-    prNumber: run.pull_requests.length > 0 ? run.pull_requests[0].number : null,
-    prTitle: run.pull_requests.length > 0 ? run.pull_requests[0].title : null,
+    prNumber:
+      run.pull_requests && run.pull_requests.length > 0
+        ? run.pull_requests[0].number
+        : null,
+    prTitle:
+      run.pull_requests && run.pull_requests.length > 0
+        ? (run.pull_requests[0] as any).title
+        : null,
     runId: run.id,
   }));
 
