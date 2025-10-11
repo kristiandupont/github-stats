@@ -61,13 +61,13 @@ function* Home(this: Context) {
 
   while (true) {
     yield (
-      <div class="flex h-screen flex-col bg-cyan-700">
-        <div class="absolute left-0 top-0 flex h-full w-full items-center justify-center overflow-y-auto">
-          <div class="flex flex-col items-center justify-start py-12 h-full w-full max-w-screen-lg space-y-6">
-            <h1 class="text-6xl bg-orange-400 rounded-xl w-full text-center py-6 text-white shadow-2xl select-none">
+      <div class="flex flex-col">
+        <div class="flex h-full w-full items-center justify-center">
+          <div class="flex flex-col items-start justify-start py-2 h-full w-full max-w-screen-lg space-y-6">
+            <h1 class="text-2xl bg-slate-50 rounded w-full py-3 px-6 text-slate-900 shadow select-none">
               GitHub Stats
             </h1>
-            <div class="w-full h-full bg-white rounded-xl shadow-2xl p-6 overflow-y-auto">
+            <div class="w-full">
               <TokenManager onTokenChange={handleTokenChange} />
               <RepositoryInput
                 onFetch={handleFetch}
