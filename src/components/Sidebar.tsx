@@ -32,7 +32,7 @@ export function* Sidebar(
     this.refresh();
   };
 
-  while (true) {
+  for ({ currentPath, onNavigate, onLoginClick, onLogout } of this) {
     const isAuthenticated = AuthService.isAuthenticated();
     const authMethod = AuthService.getAuthMethod();
 
