@@ -7,7 +7,6 @@ function Link(
   const onclick = (e: MouseEvent) => {
     e.preventDefault();
     window.location.hash = href;
-    this.refresh();
   };
 
   return (

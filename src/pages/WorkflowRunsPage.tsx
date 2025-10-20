@@ -28,41 +28,44 @@ export function* WorkflowRunsPage(
     viewMode: "table",
   };
 
-  const handleFetch = (owner: string, repo: string) =>
-    this.refresh(async () => {
-      state.isLoading = true;
-      state.error = null;
-      state.workflowRuns = [];
+  const handleFetch = async (owner: string, repo: string) => {
+    state.isLoading = true;
+    state.error = null;
+    state.workflowRuns = [];
+    this.refresh();
+    try {
+      const workflowRuns = await fetchWorkflowRuns(owner, repo);
+      console.log("Fetched workflow runs:", workflowRuns);
+      state.workflowRuns = workflowRuns;
+      state.isLoading = false;
       this.refresh();
-      try {
-        const workflowRuns = await fetchWorkflowRuns(owner, repo);
-        console.log("Fetched workflow runs:", workflowRuns);
-        state.workflowRuns = workflowRuns;
-        state.isLoading = false;
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : "An unknown error occurred";
-        state.error = errorMessage;
-        state.isLoading = false;
-        onError(errorMessage);
-      }
-    });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "An unknown error occurred";
+      state.error = errorMessage;
+      state.isLoading = false;
+      onError(errorMessage);
+      this.refresh();
+    }
+  };
 
   const handleViewModeChange = (mode: WorkflowRunsPageState["viewMode"]) =>
     this.refresh(() => {
       state.viewMode = mode;
     });
 
-  // Auto-fetch when repository changes
-  if (
-    selectedRepository &&
-    state.workflowRuns.length === 0 &&
-    !state.isLoading
-  ) {
-    handleFetch(selectedRepository.owner, selectedRepository.name);
-  }
-
   for ({ selectedRepository } of this) {
+    // Auto-fetch when repository changes
+    console.log("WorkflowRunsPage render - selectedRepository:", selectedRepository, "workflowRuns.length:", state.workflowRuns.length, "isLoading:", state.isLoading);
+    if (
+      selectedRepository &&
+      state.workflowRuns.length === 0 &&
+      !state.isLoading
+    ) {
+      console.log("Triggering auto-fetch for:", selectedRepository.owner, selectedRepository.name);
+      // Schedule the fetch to run after the current render completes
+      Promise.resolve().then(() => handleFetch(selectedRepository.owner, selectedRepository.name));
+    }
     if (!selectedRepository) {
       yield (
         <div class="flex flex-col h-full">
