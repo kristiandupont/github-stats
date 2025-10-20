@@ -24,7 +24,14 @@ export function* HomePage(
     selectedRepository,
   }: HomePageProps
 ) {
-  while (true) {
+  for ({
+    onRepositorySelect,
+    isLoading,
+    selectedRepository,
+    error,
+    isLoginDialogOpen,
+    onLoginDialogClose,
+  } of this) {
     yield (
       <div class="flex flex-col h-full">
         <div class="flex-1 p-6">

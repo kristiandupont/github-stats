@@ -20,7 +20,7 @@ export function* PullRequestsPage(
   this: Context,
   { selectedRepository, onError }: PullRequestsPageProps
 ) {
-  let state: PullRequestsPageState = {
+  const state: PullRequestsPageState = {
     pullRequests: [],
     isLoading: false,
     error: null,
@@ -28,40 +28,38 @@ export function* PullRequestsPage(
     viewMode: "overview",
   };
 
-  const handleFetch = async (owner: string, repo: string) => {
-    state.isLoading = true;
-    state.error = null;
-    state.pullRequests = [];
-    this.refresh();
+  const handleFetch = (owner: string, repo: string) =>
+    this.refresh(async () => {
+      state.isLoading = true;
+      state.error = null;
+      state.pullRequests = [];
+      this.refresh();
+      try {
+        const pullRequests = await fetchPullRequests(owner, repo);
+        console.log("Fetched pull requests:", pullRequests);
+        state.pullRequests = pullRequests;
+        state.isLoading = false;
+        state.hasLoaded = true;
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "An unknown error occurred";
+        state.error = errorMessage;
+        state.isLoading = false;
+        onError(errorMessage);
+      }
+    });
 
-    try {
-      const pullRequests = await fetchPullRequests(owner, repo);
-      console.log("Fetched pull requests:", pullRequests);
-
-      state.pullRequests = pullRequests;
-      state.isLoading = false;
-      state.hasLoaded = true;
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "An unknown error occurred";
-      state.error = errorMessage;
-      state.isLoading = false;
-      onError(errorMessage);
-    }
-    this.refresh();
-  };
-
-  const handleViewModeChange = (mode: PullRequestsPageState["viewMode"]) => {
-    state.viewMode = mode;
-    this.refresh();
-  };
+  const handleViewModeChange = (mode: PullRequestsPageState["viewMode"]) =>
+    this.refresh(() => {
+      state.viewMode = mode;
+    });
 
   // Auto-fetch when repository changes (lazy loading)
   if (selectedRepository && !state.hasLoaded && !state.isLoading) {
     handleFetch(selectedRepository.owner, selectedRepository.name);
   }
 
-  while (true) {
+  for ({ selectedRepository } of this) {
     if (!selectedRepository) {
       yield (
         <div class="flex flex-col h-full">
@@ -77,10 +75,11 @@ export function* PullRequestsPage(
                   request analytics.
                 </p>
                 <button
-                  onclick={() => {
-                    window.location.hash = "/";
-                    this.refresh();
-                  }}
+                  onclick={() =>
+                    this.refresh(() => {
+                      window.location.hash = "/";
+                    })
+                  }
                   class="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   Go to Settings

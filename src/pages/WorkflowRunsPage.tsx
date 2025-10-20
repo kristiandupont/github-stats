@@ -21,39 +21,37 @@ export function* WorkflowRunsPage(
   this: Context,
   { selectedRepository, onError }: WorkflowRunsPageProps
 ) {
-  let state: WorkflowRunsPageState = {
+  const state: WorkflowRunsPageState = {
     workflowRuns: [],
     isLoading: false,
     error: null,
     viewMode: "table",
   };
 
-  const handleFetch = async (owner: string, repo: string) => {
-    state.isLoading = true;
-    state.error = null;
-    state.workflowRuns = [];
-    this.refresh();
+  const handleFetch = (owner: string, repo: string) =>
+    this.refresh(async () => {
+      state.isLoading = true;
+      state.error = null;
+      state.workflowRuns = [];
+      this.refresh();
+      try {
+        const workflowRuns = await fetchWorkflowRuns(owner, repo);
+        console.log("Fetched workflow runs:", workflowRuns);
+        state.workflowRuns = workflowRuns;
+        state.isLoading = false;
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "An unknown error occurred";
+        state.error = errorMessage;
+        state.isLoading = false;
+        onError(errorMessage);
+      }
+    });
 
-    try {
-      const workflowRuns = await fetchWorkflowRuns(owner, repo);
-      console.log("Fetched workflow runs:", workflowRuns);
-
-      state.workflowRuns = workflowRuns;
-      state.isLoading = false;
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "An unknown error occurred";
-      state.error = errorMessage;
-      state.isLoading = false;
-      onError(errorMessage);
-    }
-    this.refresh();
-  };
-
-  const handleViewModeChange = (mode: WorkflowRunsPageState["viewMode"]) => {
-    state.viewMode = mode;
-    this.refresh();
-  };
+  const handleViewModeChange = (mode: WorkflowRunsPageState["viewMode"]) =>
+    this.refresh(() => {
+      state.viewMode = mode;
+    });
 
   // Auto-fetch when repository changes
   if (
@@ -64,7 +62,7 @@ export function* WorkflowRunsPage(
     handleFetch(selectedRepository.owner, selectedRepository.name);
   }
 
-  while (true) {
+  for ({ selectedRepository } of this) {
     if (!selectedRepository) {
       yield (
         <div class="flex flex-col h-full">
@@ -80,10 +78,11 @@ export function* WorkflowRunsPage(
                   workflow run analytics.
                 </p>
                 <button
-                  onclick={() => {
-                    window.location.hash = "/";
-                    this.refresh();
-                  }}
+                  onclick={() =>
+                    this.refresh(() => {
+                      window.location.hash = "/";
+                    })
+                  }
                   class="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   Go to Settings

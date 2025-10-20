@@ -12,13 +12,13 @@ export function* AuthStatus(
   this: Context,
   { onLoginClick, onLogout }: AuthStatusProps
 ) {
-  const handleLogout = () => {
-    AuthService.logout();
-    onLogout();
-    this.refresh();
-  };
+  const handleLogout = () =>
+    this.refresh(() => {
+      AuthService.logout();
+      onLogout();
+    });
 
-  while (true) {
+  for ({ onLoginClick } of this) {
     // Read auth state fresh on each render
     const isAuthenticated = AuthService.isAuthenticated();
     const authMethod = AuthService.getAuthMethod();

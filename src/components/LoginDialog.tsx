@@ -20,7 +20,7 @@ export function* LoginDialog(
   this: Context,
   { isOpen, onClose, onAuthSuccess }: LoginDialogProps
 ) {
-  let state: DialogState = {
+  const state: DialogState = {
     patState: {
       token: "",
       error: null,
@@ -32,50 +32,41 @@ export function* LoginDialog(
     AuthService.initiateOAuthFlow();
   };
 
-  const handlePatSubmit = async (event: Event) => {
-    event.preventDefault();
-    const form = event.target as HTMLFormElement;
-    const formData = new FormData(form);
-    const token = formData.get("token") as string;
-
-    if (!token || !token.trim()) {
-      state.patState.error = "Please enter a token";
-      this.refresh();
-      return;
-    }
-
-    try {
-      state.patState.error = null;
-      this.refresh();
-
-      // Validate token
-      const isValid = await AuthService.validateToken(token.trim());
-      if (!isValid) {
-        state.patState.error =
-          "Invalid token. Please check your token and try again.";
-        this.refresh();
+  const handlePatSubmit = (event: Event) =>
+    this.refresh(async () => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      const formData = new FormData(form);
+      const token = formData.get("token") as string;
+      if (!token || !token.trim()) {
+        state.patState.error = "Please enter a token";
         return;
       }
+      try {
+        state.patState.error = null;
+        this.refresh();
+        const isValid = await AuthService.validateToken(token.trim());
+        if (!isValid) {
+          state.patState.error =
+            "Invalid token. Please check your token and try again.";
+          return;
+        }
+        AuthService.setToken(token.trim(), "pat");
+        sessionStorage.removeItem("oauth-success");
+        onAuthSuccess();
+        onClose();
+      } catch (error) {
+        state.patState.error =
+          error instanceof Error ? error.message : "Failed to validate token";
+      }
+    });
 
-      // Store token
-      AuthService.setToken(token.trim(), "pat");
-      // Clear OAuth success flag since we now have a PAT
-      sessionStorage.removeItem("oauth-success");
-      onAuthSuccess();
-      onClose();
-    } catch (error) {
-      state.patState.error =
-        error instanceof Error ? error.message : "Failed to validate token";
-      this.refresh();
-    }
-  };
-
-  const handlePatInput = (event: Event) => {
-    const input = event.target as HTMLInputElement;
-    state.patState.token = input.value;
-    state.patState.error = null;
-    this.refresh();
-  };
+  const handlePatInput = (event: Event) =>
+    this.refresh(() => {
+      const input = event.target as HTMLInputElement;
+      state.patState.token = input.value;
+      state.patState.error = null;
+    });
 
   const handleBackdropClick = (event: Event) => {
     if (event.target === event.currentTarget) {

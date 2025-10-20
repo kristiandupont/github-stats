@@ -26,13 +26,13 @@ export function* Sidebar(
   this: Context,
   { currentPath, onNavigate, onLoginClick, onLogout }: SidebarProps
 ) {
-  const handleLogout = () => {
-    AuthService.logout();
-    onLogout();
-    this.refresh();
-  };
+  const handleLogout = () =>
+    this.refresh(() => {
+      AuthService.logout();
+      onLogout();
+    });
 
-  for ({ currentPath, onNavigate, onLoginClick, onLogout } of this) {
+  for ({ currentPath, onNavigate, onLoginClick } of this) {
     const isAuthenticated = AuthService.isAuthenticated();
     const authMethod = AuthService.getAuthMethod();
 

@@ -21,23 +21,20 @@ interface AppState {
 
 // OAuth Callback component
 function* AuthCallback(this: Context) {
-  const handleCallback = () => {
-    const success = AuthService.handleOAuthCallback();
-    if (success) {
-      // Redirect to home page after successful auth
-      window.location.hash = "/";
-      this.refresh();
-    } else {
-      // Show error or redirect to home
-      window.location.hash = "/";
-      this.refresh();
-    }
-  };
+  const handleCallback = () =>
+    this.refresh(() => {
+      const success = AuthService.handleOAuthCallback();
+      if (success) {
+        window.location.hash = "/";
+      } else {
+        window.location.hash = "/";
+      }
+    });
 
   // Handle callback on mount
   handleCallback();
 
-  while (true) {
+  for ({} of this) {
     yield (
       <div class="flex h-screen items-center justify-center">
         <div class="text-center">
@@ -73,6 +70,7 @@ function* RoutedApp(this: Context) {
 
   // Set up hash change listener
   const handleHashChange = () => {
+    // eslint-disable-next-line crank/prefer-refresh-callback
     this.refresh();
   };
   window.addEventListener("hashchange", handleHashChange);
@@ -81,25 +79,25 @@ function* RoutedApp(this: Context) {
     window.location.hash = path;
   };
 
-  const handleLoginClick = () => {
-    isLoginDialogOpen = true;
-    this.refresh();
-  };
+  const handleLoginClick = () =>
+    this.refresh(() => {
+      isLoginDialogOpen = true;
+    });
 
-  const handleLogout = () => {
-    AuthService.logout();
-    this.refresh();
-  };
+  const handleLogout = () =>
+    this.refresh(() => {
+      AuthService.logout();
+    });
 
-  const handleLoginDialogClose = () => {
-    isLoginDialogOpen = false;
-    this.refresh();
-  };
+  const handleLoginDialogClose = () =>
+    this.refresh(() => {
+      isLoginDialogOpen = false;
+    });
 
-  const handleAuthSuccess = () => {
-    isLoginDialogOpen = false;
-    this.refresh();
-  };
+  const handleAuthSuccess = () =>
+    this.refresh(() => {
+      isLoginDialogOpen = false;
+    });
 
   // Get current path
   const getCurrentPath = () => {
@@ -109,7 +107,7 @@ function* RoutedApp(this: Context) {
   };
 
   try {
-    while (true) {
+    for ({} of this) {
       // Use hash-based routing for GitHub Pages compatibility
       const normalizedPath = getCurrentPath();
       const Route = routes[normalizedPath];
@@ -176,7 +174,7 @@ function* RoutedApp(this: Context) {
 }
 
 function* Home(this: Context) {
-  let state: AppState = {
+  const state: AppState = {
     selectedRepository: null,
     hasToken: !!localStorage.getItem("github-token"),
     isLoginDialogOpen: false,
@@ -184,20 +182,19 @@ function* Home(this: Context) {
     isLoading: false,
   };
 
-  const handleRepositorySelect = (owner: string, repo: string) => {
-    state.selectedRepository = { owner, name: repo };
-    // Store in localStorage for persistence
-    localStorage.setItem(
-      "selected-repository",
-      JSON.stringify({ owner, name: repo })
-    );
-    this.refresh();
-  };
+  const handleRepositorySelect = (owner: string, repo: string) =>
+    this.refresh(() => {
+      state.selectedRepository = { owner, name: repo };
+      localStorage.setItem(
+        "selected-repository",
+        JSON.stringify({ owner, name: repo })
+      );
+    });
 
-  const handleLoginDialogClose = () => {
-    state.isLoginDialogOpen = false;
-    this.refresh();
-  };
+  const handleLoginDialogClose = () =>
+    this.refresh(() => {
+      state.isLoginDialogOpen = false;
+    });
 
   // Load saved repository on mount
   const savedRepo = localStorage.getItem("selected-repository");
@@ -209,7 +206,7 @@ function* Home(this: Context) {
     }
   }
 
-  while (true) {
+  for ({} of this) {
     yield (
       <HomePage
         onRepositorySelect={handleRepositorySelect}
@@ -224,7 +221,7 @@ function* Home(this: Context) {
 }
 
 function* WorkflowRuns(this: Context) {
-  let state: AppState = {
+  const state: AppState = {
     selectedRepository: null,
     hasToken: !!localStorage.getItem("github-token"),
     isLoginDialogOpen: false,
@@ -242,7 +239,7 @@ function* WorkflowRuns(this: Context) {
     }
   }
 
-  while (true) {
+  for ({} of this) {
     yield (
       <WorkflowRunsPage
         selectedRepository={state.selectedRepository}
@@ -253,7 +250,7 @@ function* WorkflowRuns(this: Context) {
 }
 
 function* PullRequests(this: Context) {
-  let state: AppState = {
+  const state: AppState = {
     selectedRepository: null,
     hasToken: !!localStorage.getItem("github-token"),
     isLoginDialogOpen: false,
@@ -271,7 +268,7 @@ function* PullRequests(this: Context) {
     }
   }
 
-  while (true) {
+  for ({} of this) {
     yield (
       <PullRequestsPage
         selectedRepository={state.selectedRepository}
