@@ -10,6 +10,8 @@ import { PullRequestsPage } from "./pages/PullRequestsPage";
 import { LoginDialog } from "./components/LoginDialog";
 import { AuthService } from "./services/auth";
 import { storageService } from "./services/storage";
+import { Background } from "./components/Background";
+import { SvgBackground } from "./components/SvgBackground";
 
 interface AppState {
   selectedRepository: { owner: string; name: string } | null;
@@ -38,8 +40,8 @@ function* AuthCallback(this: Context) {
     yield (
       <div class="flex h-screen items-center justify-center">
         <div class="text-center">
-          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p class="text-gray-600">Processing authentication...</p>
+          <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p class="text-slate-600">Processing authentication...</p>
         </div>
       </div>
     );
@@ -114,14 +116,14 @@ function* RoutedApp(this: Context) {
 
       if (Route) {
         yield (
-          <div class="flex h-screen bg-gray-100">
+          <SvgBackground svg={Background} className="flex h-screen bg-black">
             <Sidebar
               currentPath={normalizedPath}
               onNavigate={handleNavigate}
               onLoginClick={handleLoginClick}
               onLogout={handleLogout}
             />
-            <div class="flex-1 overflow-auto">
+            <div class="flex-1 overflow-auto bg-slate-900/70">
               <Route />
             </div>
             <LoginDialog
@@ -129,12 +131,12 @@ function* RoutedApp(this: Context) {
               onClose={handleLoginDialogClose}
               onAuthSuccess={handleAuthSuccess}
             />
-          </div>
+          </SvgBackground>
         );
       } else {
         // 404 - redirect to home
         yield (
-          <div class="flex h-screen bg-gray-100">
+          <div class="flex h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
             <Sidebar
               currentPath="/"
               onNavigate={handleNavigate}
@@ -143,17 +145,17 @@ function* RoutedApp(this: Context) {
             />
             <div class="flex-1 overflow-auto flex items-center justify-center">
               <div class="text-center">
-                <h1 class="text-2xl font-bold text-gray-800 mb-4">
+                <h1 class="text-2xl font-bold text-slate-800 mb-4">
                   Page Not Found
                 </h1>
-                <p class="text-gray-600 mb-4">
+                <p class="text-slate-600 mb-4">
                   The page you're looking for doesn't exist.
                 </p>
                 <button
                   onclick={() => {
                     window.location.hash = "/";
                   }}
-                  class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
                 >
                   Go Home
                 </button>

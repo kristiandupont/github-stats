@@ -1,7 +1,10 @@
 /** @jsxImportSource @b9g/crank */
 
-import type { Context } from "@b9g/crank";
+import type { Component, Context } from "@b9g/crank";
 import { AuthService } from "../services/auth";
+import PullRequest from "./icons/PullRequest";
+import PlayCircle from "./icons/PlayCircle";
+import Cog from "./icons/Cog";
 
 interface SidebarProps {
   currentPath: string;
@@ -13,13 +16,13 @@ interface SidebarProps {
 interface NavItem {
   path: string;
   label: string;
-  icon: string;
+  icon: Component;
 }
 
 const navItems: NavItem[] = [
-  { path: "/", label: "Settings", icon: "⚙️" },
-  { path: "/workflow-runs", label: "Workflow Runs", icon: "🔄" },
-  { path: "/pull-requests", label: "Pull Requests", icon: "📝" },
+  { path: "/", label: "Settings", icon: Cog },
+  { path: "/workflow-runs", label: "Workflow Runs", icon: PlayCircle },
+  { path: "/pull-requests", label: "Pull Requests", icon: PullRequest },
 ];
 
 export function* Sidebar(
@@ -37,10 +40,10 @@ export function* Sidebar(
     const authMethod = AuthService.getAuthMethod();
 
     yield (
-      <div class="w-64 bg-gray-50 border-r border-gray-200 h-screen flex flex-col">
+      <div class="w-64 bg-slate-900/30 backdrop-blur-sm border-r border-white/10 h-screen flex flex-col">
         {/* Header */}
-        <div class="p-6 border-b border-gray-200">
-          <h1 class="text-xl font-bold text-gray-900">GitHub Stats</h1>
+        <div class="p-6 border-b border-white/10">
+          <h1 class="text-xl font-bold text-white">GitHub Stats</h1>
         </div>
 
         {/* Navigation */}
@@ -50,14 +53,14 @@ export function* Sidebar(
               <li key={item.path}>
                 <button
                   onclick={() => onNavigate(item.path)}
-                  class={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                  class={`w-full gap-3 flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                     currentPath === item.path
-                      ? "bg-blue-100 text-blue-700 border-r-2 border-blue-700"
-                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                      ? "bg-white/20 text-white"
+                      : "text-white/70 hover:bg-white/10 hover:text-white"
                   }`}
                 >
-                  <span class="mr-3 text-lg">{item.icon}</span>
-                  {item.label}
+                  <item.icon className="size-4" />
+                  <span>{item.label}</span>
                 </button>
               </li>
             ))}
@@ -65,13 +68,13 @@ export function* Sidebar(
         </nav>
 
         {/* Auth Status */}
-        <div class="p-4 border-t border-gray-200">
+        <div class="p-4 border-t border-white/10">
           {isAuthenticated ? (
             <div class="space-y-3">
-              <div class="bg-green-50 border border-green-200 rounded-lg p-3">
+              <div class="bg-emerald-500/20 border border-emerald-400/30 rounded-lg p-3">
                 <div class="flex items-center">
                   <svg
-                    class="w-4 h-4 text-green-600 mr-2"
+                    class="w-4 h-4 text-emerald-300 mr-2"
                     fill="currentColor"
                     viewBox="0 0 20 20"
                   >
@@ -81,29 +84,29 @@ export function* Sidebar(
                       clipRule="evenodd"
                     />
                   </svg>
-                  <div class="text-xs text-green-700">
+                  <div class="text-xs text-emerald-100">
                     <div class="font-medium">
-                      ✓ Authenticated
+                      Authenticated
                       {authMethod === "oauth" && " (OAuth)"}
                       {authMethod === "pat" && " (PAT)"}
                     </div>
-                    <div class="text-green-600">5,000 requests/hour</div>
+                    <div class="text-emerald-300/80">5,000 requests/hour</div>
                   </div>
                 </div>
               </div>
               <button
                 onclick={handleLogout}
-                class="w-full px-3 py-2 text-sm bg-red-100 text-red-700 rounded-md hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-red-500"
+                class="w-full px-3 py-2 text-sm bg-rose-500/20 text-rose-200 border border-rose-400/30 rounded-md hover:bg-rose-500/30 focus:outline-none focus:ring-2 focus:ring-rose-500/50"
               >
                 Logout
               </button>
             </div>
           ) : (
             <div class="space-y-3">
-              <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+              <div class="bg-amber-500/20 border border-amber-400/30 rounded-lg p-3">
                 <div class="flex items-center">
                   <svg
-                    class="w-4 h-4 text-yellow-600 mr-2"
+                    class="w-4 h-4 text-amber-300 mr-2"
                     fill="currentColor"
                     viewBox="0 0 20 20"
                   >
@@ -113,15 +116,15 @@ export function* Sidebar(
                       clipRule="evenodd"
                     />
                   </svg>
-                  <div class="text-xs text-yellow-700">
-                    <div class="font-medium">⚠️ Not authenticated</div>
-                    <div class="text-yellow-600">60 requests/hour</div>
+                  <div class="text-xs text-amber-100">
+                    <div class="font-medium">Not authenticated</div>
+                    <div class="text-amber-300/80">60 requests/hour</div>
                   </div>
                 </div>
               </div>
               <button
                 onclick={onLoginClick}
-                class="w-full px-3 py-2 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                class="w-full px-3 py-2 text-sm bg-indigo-500/30 text-indigo-100 border border-indigo-400/30 rounded-md hover:bg-indigo-500/40 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
               >
                 Login
               </button>

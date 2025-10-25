@@ -56,15 +56,28 @@ export function* WorkflowRunsPage(
 
   for ({ selectedRepository } of this) {
     // Auto-fetch when repository changes
-    console.log("WorkflowRunsPage render - selectedRepository:", selectedRepository, "workflowRuns.length:", state.workflowRuns.length, "isLoading:", state.isLoading);
+    console.log(
+      "WorkflowRunsPage render - selectedRepository:",
+      selectedRepository,
+      "workflowRuns.length:",
+      state.workflowRuns.length,
+      "isLoading:",
+      state.isLoading
+    );
     if (
       selectedRepository &&
       state.workflowRuns.length === 0 &&
       !state.isLoading
     ) {
-      console.log("Triggering auto-fetch for:", selectedRepository.owner, selectedRepository.name);
+      console.log(
+        "Triggering auto-fetch for:",
+        selectedRepository.owner,
+        selectedRepository.name
+      );
       // Schedule the fetch to run after the current render completes
-      Promise.resolve().then(() => handleFetch(selectedRepository.owner, selectedRepository.name));
+      Promise.resolve().then(() =>
+        handleFetch(selectedRepository.owner, selectedRepository.name)
+      );
     }
     if (!selectedRepository) {
       yield (
@@ -72,11 +85,17 @@ export function* WorkflowRunsPage(
           <div class="flex-1 p-6">
             <div class="max-w-4xl mx-auto">
               <div class="text-center py-12">
-                <div class="text-6xl mb-4">🔄</div>
-                <h2 class="text-2xl font-bold text-gray-900 mb-2">
+                <svg
+                  class="w-24 h-24 mx-auto mb-4 text-slate-400"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z M20 12c0-3.042-1.135-5.824-3-7.938l-3 2.647A7.962 7.962 0 0116 12h4zm-9 8c6.627 0 12-5.373 12-12h-4a8 8 0 01-8 8v4z" />
+                </svg>
+                <h2 class="text-2xl font-bold text-slate-200 mb-2">
                   No Repository Selected
                 </h2>
-                <p class="text-gray-600 mb-6">
+                <p class="text-slate-300 mb-6">
                   Please select a repository from the Settings page to view
                   workflow run analytics.
                 </p>
@@ -86,7 +105,7 @@ export function* WorkflowRunsPage(
                       window.location.hash = "/";
                     })
                   }
-                  class="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  class="px-6 py-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   Go to Settings
                 </button>
@@ -103,19 +122,19 @@ export function* WorkflowRunsPage(
         <div class="flex-1 p-6">
           <div class="max-w-6xl mx-auto">
             <div class="mb-6">
-              <h1 class="text-2xl font-bold text-gray-800 mb-2">
+              <h1 class="text-2xl font-bold text-slate-200 mb-2">
                 Workflow Runs for {selectedRepository.owner}/
                 {selectedRepository.name}
               </h1>
-              <p class="text-gray-600">
+              <p class="text-slate-300">
                 Showing {state.workflowRuns.length} workflow runs from the last
                 30 days
               </p>
             </div>
 
             {state.error && (
-              <div class="bg-red-50 border border-red-200 rounded-md p-4 mb-6">
-                <div class="text-red-800">
+              <div class="bg-rose-50 border border-rose-200 rounded-md p-4 mb-6">
+                <div class="text-rose-800">
                   <strong>Error:</strong> {state.error}
                 </div>
               </div>
@@ -143,8 +162,8 @@ export function* WorkflowRunsPage(
                     key={mode}
                     class={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center ${
                       state.viewMode === mode
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                        ? "bg-indigo-600 text-white"
+                        : "bg-white/80 text-slate-700 hover:bg-white border border-slate-200"
                     }`}
                     onclick={() => handleViewModeChange(mode)}
                   >
@@ -207,17 +226,17 @@ function SuccessRateChart({
   if (isLoading) {
     return (
       <div class="flex justify-center items-center py-8">
-        <div class="text-lg text-gray-600">Loading success rate chart...</div>
+        <div class="text-lg text-slate-300">Loading success rate chart...</div>
       </div>
     );
   }
 
   return (
     <div class="bg-white rounded-lg shadow-md p-6">
-      <h3 class="text-xl font-semibold text-gray-800 mb-4">
+      <h3 class="text-xl font-semibold text-slate-200 mb-4">
         Success Rate Over Time
       </h3>
-      <div class="h-96 flex items-center justify-center text-gray-500">
+      <div class="h-96 flex items-center justify-center text-slate-300">
         <div class="text-center">
           <div class="text-4xl mb-2">✅</div>
           <p>Success rate chart coming soon...</p>
@@ -236,15 +255,15 @@ function FrequencyChart({
   if (isLoading) {
     return (
       <div class="flex justify-center items-center py-8">
-        <div class="text-lg text-gray-600">Loading frequency chart...</div>
+        <div class="text-lg text-slate-300">Loading frequency chart...</div>
       </div>
     );
   }
 
   return (
     <div class="bg-white rounded-lg shadow-md p-6">
-      <h3 class="text-xl font-semibold text-gray-800 mb-4">Build Frequency</h3>
-      <div class="h-96 flex items-center justify-center text-gray-500">
+      <h3 class="text-xl font-semibold text-slate-200 mb-4">Build Frequency</h3>
+      <div class="h-96 flex items-center justify-center text-slate-300">
         <div class="text-center">
           <div class="text-4xl mb-2">📊</div>
           <p>Frequency chart coming soon...</p>
@@ -263,14 +282,16 @@ function BranchesChart({
   if (isLoading) {
     return (
       <div class="flex justify-center items-center py-8">
-        <div class="text-lg text-gray-600">Loading branches chart...</div>
+        <div class="text-lg text-slate-300">Loading branches chart...</div>
       </div>
     );
   }
 
   return (
     <div class="bg-white rounded-lg shadow-md p-6">
-      <h3 class="text-xl font-semibold text-gray-800 mb-4">Builds by Branch</h3>
+      <h3 class="text-xl font-semibold text-slate-200 mb-4">
+        Builds by Branch
+      </h3>
       <div class="h-96 flex items-center justify-center text-gray-500">
         <div class="text-center">
           <div class="text-4xl mb-2">🌿</div>

@@ -117,8 +117,8 @@ export function* LoginDialog(
             </p>
 
             {sessionStorage.getItem("oauth-success") && (
-              <div class="bg-green-50 border border-green-200 rounded-md p-4 mb-4">
-                <div class="text-green-800 text-sm">
+              <div class="bg-emerald-50 border border-emerald-200 rounded-md p-4 mb-4">
+                <div class="text-emerald-800 text-sm">
                   <p class="font-medium mb-1">
                     ✓ OAuth Authorization Successful!
                   </p>
@@ -131,8 +131,8 @@ export function* LoginDialog(
               </div>
             )}
 
-            <div class="bg-blue-50 border border-blue-200 rounded-md p-4 mb-4">
-              <div class="text-blue-800 text-sm">
+            <div class="bg-indigo-50 border border-indigo-200 rounded-md p-4 mb-4">
+              <div class="text-indigo-800 text-sm">
                 <p class="font-medium mb-1">
                   Choose Your Authentication Method
                 </p>
@@ -147,7 +147,7 @@ export function* LoginDialog(
               <div class="space-y-4">
                 <button
                   onclick={handleOAuthStart}
-                  class="w-full flex items-center justify-center px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  class="w-full flex items-center justify-center px-4 py-3 border border-slate-300 rounded-lg hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <svg
                     class="w-5 h-5 mr-2"
@@ -187,14 +187,14 @@ export function* LoginDialog(
                       placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
                       value={state.patState.token}
                       oninput={handlePatInput}
-                      class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      class="w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                     />
                     <p class="text-xs text-gray-500 mt-1">
                       <a
                         href="https://github.com/settings/tokens"
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="text-blue-600 hover:text-blue-800 underline"
+                        class="text-indigo-600 hover:text-indigo-800 underline"
                       >
                         Create a token here
                       </a>{" "}
@@ -203,7 +203,7 @@ export function* LoginDialog(
                   </div>
                   <button
                     type="submit"
-                    class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    class="w-full px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                   >
                     Use Token
                   </button>
@@ -212,8 +212,8 @@ export function* LoginDialog(
             }
 
             {state.patState.error && (
-              <div class="bg-red-50 border border-red-200 rounded-md p-4 mt-4">
-                <div class="text-red-800 text-sm">
+              <div class="bg-rose-50 border border-rose-200 rounded-md p-4 mt-4">
+                <div class="text-rose-800 text-sm">
                   <strong>Error:</strong> {state.patState.error}
                 </div>
               </div>

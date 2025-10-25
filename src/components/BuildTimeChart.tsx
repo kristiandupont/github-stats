@@ -45,13 +45,13 @@ export function* BuildTimeChart(
     yield (
       <div class="w-full">
         <div class="mb-4">
-          <h3 class="text-xl font-semibold text-gray-800 mb-2">
+          <h3 class="text-xl font-semibold text-slate-200 mb-2">
             Build Time Trend for Successful Builds
           </h3>
-          <p class="text-gray-600">
+          <p class="text-slate-300">
             No successful builds found in recent history
           </p>
-          <div class="text-sm text-gray-500 mt-2 bg-gray-50 p-3 rounded">
+          <div class="text-sm text-slate-300 mt-2 bg-slate-50 p-3 rounded">
             <p>
               <strong>Summary:</strong>
             </p>
@@ -59,7 +59,7 @@ export function* BuildTimeChart(
             <p>• Successful runs: {successfulBuilds.length}</p>
             <p>• PR workflow runs: {prWorkflowRuns.length}</p>
             <p>• Runs with PRs: {runsWithPRs.length}</p>
-            <p class="mt-2 text-gray-600">
+            <p class="mt-2 text-slate-300">
               <em>
                 Note: All successful workflow runs are shown in the chart.
               </em>
@@ -111,13 +111,13 @@ export function* BuildTimeChart(
   yield (
     <div class="w-full">
       <div class="mb-4">
-        <h3 class="text-xl font-semibold text-gray-800 mb-2">
+        <h3 class="text-xl font-semibold text-slate-200 mb-2">
           Build Time Trend for Successful Builds
         </h3>
-        <p class="text-gray-600">
+        <p class="text-slate-300">
           Showing {chartData.length} successful builds over time
         </p>
-        <div class="text-sm text-gray-500 mt-2">
+        <div class="text-sm text-slate-300 mt-2">
           <p>
             • Total workflow runs: {runs.length} • Successful builds:{" "}
             {chartData.length} • PR builds:{" "}
@@ -127,7 +127,7 @@ export function* BuildTimeChart(
       </div>
       <div
         id={chartId}
-        class="w-full h-96 min-h-64 border border-gray-200 rounded-lg bg-white overflow-hidden"
+        class="w-full h-96 min-h-64 border border-slate-200 rounded-lg bg-white overflow-hidden"
       ></div>
     </div>
   );
