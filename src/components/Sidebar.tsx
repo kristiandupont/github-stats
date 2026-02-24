@@ -2,7 +2,6 @@
 
 import type { Component, Context } from "@b9g/crank";
 import { AuthService } from "../services/auth";
-import PullRequest from "./icons/PullRequest";
 import PlayCircle from "./icons/PlayCircle";
 import Cog from "./icons/Cog";
 
@@ -21,8 +20,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { path: "/", label: "Settings", icon: Cog },
-  { path: "/workflow-runs", label: "Workflow Runs", icon: PlayCircle },
-  { path: "/pull-requests", label: "Pull Requests", icon: PullRequest },
+  { path: "/workflow-runs", label: "Workflow build times", icon: PlayCircle },
 ];
 
 export function* Sidebar(

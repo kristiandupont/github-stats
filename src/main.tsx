@@ -6,7 +6,6 @@ import type { Context, Component } from "@b9g/crank";
 import { Sidebar } from "./components/Sidebar";
 import { HomePage } from "./pages/HomePage";
 import { WorkflowRunsPage } from "./pages/WorkflowRunsPage";
-import { PullRequestsPage } from "./pages/PullRequestsPage";
 import { LoginDialog } from "./components/LoginDialog";
 import { AuthService } from "./services/auth";
 import { storageService } from "./services/storage";
@@ -52,7 +51,6 @@ function* AuthCallback(this: Context) {
 const routes: Record<string, Component> = {
   "/": Home,
   "/workflow-runs": WorkflowRuns,
-  "/pull-requests": PullRequests,
   "/auth/callback": AuthCallback,
 };
 
@@ -244,35 +242,6 @@ function* WorkflowRuns(this: Context) {
   for ({} of this) {
     yield (
       <WorkflowRunsPage
-        selectedRepository={state.selectedRepository}
-        onError={() => {}}
-      />
-    );
-  }
-}
-
-function* PullRequests(this: Context) {
-  const state: AppState = {
-    selectedRepository: null,
-    hasToken: !!localStorage.getItem("github-token"),
-    isLoginDialogOpen: false,
-    error: null,
-    isLoading: false,
-  };
-
-  // Load saved repository on mount
-  const savedRepo = localStorage.getItem("selected-repository");
-  if (savedRepo && !state.selectedRepository) {
-    try {
-      state.selectedRepository = JSON.parse(savedRepo);
-    } catch (e) {
-      console.warn("Failed to parse saved repository:", e);
-    }
-  }
-
-  for ({} of this) {
-    yield (
-      <PullRequestsPage
         selectedRepository={state.selectedRepository}
         onError={() => {}}
       />

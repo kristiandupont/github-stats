@@ -26,7 +26,7 @@ export function* BuildTimeChart(
   if (isLoading) {
     yield (
       <div class="flex justify-center items-center py-8">
-        <div class="text-lg text-gray-600">Loading chart...</div>
+        <div class="text-lg text-slate-300">Loading chart...</div>
       </div>
     );
     return;
@@ -51,7 +51,7 @@ export function* BuildTimeChart(
           <p class="text-slate-300">
             No successful builds found in recent history
           </p>
-          <div class="text-sm text-slate-300 mt-2 bg-slate-50 p-3 rounded">
+          <div class="text-sm text-slate-300 mt-2 bg-slate-800/80 p-3 rounded border border-slate-600">
             <p>
               <strong>Summary:</strong>
             </p>
@@ -127,7 +127,7 @@ export function* BuildTimeChart(
       </div>
       <div
         id={chartId}
-        class="w-full h-96 min-h-64 border border-slate-200 rounded-lg bg-white overflow-hidden"
+        class="w-full h-96 min-h-64 border border-slate-600 rounded-lg bg-black overflow-hidden"
       ></div>
     </div>
   );
@@ -154,24 +154,61 @@ export function renderBuildTimeChart(data: ChartDataPoint[], chartId: string) {
     return { width, height, fullWidth, fullHeight };
   };
 
+  // Bright colors for dark background
+  const colors = {
+    line: "#38bdf8",
+    dotStroke: "#0f172a",
+    axis: "#94a3b8",
+    label: "#e2e8f0",
+  };
+
   // Function to create/update the chart
   const updateChart = () => {
     const { width, height, fullWidth, fullHeight } = getDimensions();
 
-    // Remove existing SVG if it exists
+    // Remove existing SVG and any previous tooltip for this chart
     container.selectAll("svg").remove();
+    d3.selectAll(".build-time-chart-tooltip").remove();
 
     const svg = container
       .append("svg")
       .attr("width", fullWidth)
       .attr("height", fullHeight);
 
-    const g = svg
+    // Clip path so the line and dots don't bleed into margins/axes
+    svg
+      .append("defs")
+      .append("clipPath")
+      .attr("id", `clip-${chartId}`)
+      .append("rect")
+      .attr("x", 0)
+      .attr("y", 0)
+      .attr("width", width)
+      .attr("height", height);
+
+    const marginG = svg
       .append("g")
       .attr("transform", `translate(${margin.left},${margin.top})`);
 
-    // Scales
-    const xScale = d3
+    // Invisible rect so the whole chart area receives pointer/wheel events
+    marginG
+      .append("rect")
+      .attr("width", width)
+      .attr("height", height)
+      .attr("fill", "transparent")
+      .style("cursor", "grab")
+      .style("pointer-events", "all");
+
+    // Chart content (no geometric transform; we redraw x-dependent parts on zoom)
+    const contentG = marginG.append("g");
+
+    // Plot area: path and dots, clipped to the data rectangle
+    const plotAreaG = contentG
+      .append("g")
+      .attr("clip-path", `url(#clip-${chartId})`);
+
+    // Base scales: full data domain. Zoom only changes the x (time) view.
+    const baseXScale = d3
       .scaleTime()
       .domain(d3.extent(data, (d) => d.date) as [Date, Date])
       .range([0, width]);
@@ -181,52 +218,69 @@ export function renderBuildTimeChart(data: ChartDataPoint[], chartId: string) {
       .domain([0, d3.max(data, (d) => d.duration) || 0])
       .range([height, 0]);
 
-    // Line generator
-    const line = d3
-      .line<ChartDataPoint>()
-      .x((d) => xScale(d.date))
-      .y((d) => yScale(d.duration))
-      .curve(d3.curveMonotoneX);
+    const lineGen = (xScale: d3.ScaleTime<number, number>) =>
+      d3
+        .line<ChartDataPoint>()
+        .x((d) => xScale(d.date))
+        .y((d) => yScale(d.duration))
+        .curve(d3.curveMonotoneX);
 
-    // Add the line
-    g.append("path")
+    const xAxisGen = (xScale: d3.ScaleTime<number, number>) =>
+      d3
+        .axisBottom(xScale)
+        .tickFormat((d) => d3.timeFormat("%m/%d")(d as Date))
+        .tickSizeOuter(0);
+
+    const yAxis = d3.axisLeft(yScale).tickSizeOuter(0);
+
+    // Update path, dots, and x-axis for the current x scale (called on init and on zoom)
+    const updateZoomedView = (viewXScale: d3.ScaleTime<number, number>) => {
+      path.attr("d", lineGen(viewXScale)(data) ?? "");
+      dots.attr("cx", (d) => viewXScale(d.date));
+      xAxisG.call(xAxisGen(viewXScale));
+      xAxisG.attr("color", colors.axis).selectAll("text").style("fill", colors.axis);
+      xAxisG.selectAll(".domain").attr("stroke", colors.axis);
+      xAxisG.selectAll(".tick line").attr("stroke", colors.axis);
+      xAxisG.selectAll(".tick text").style("fill", colors.axis);
+    };
+
+    const path = plotAreaG
+      .append("path")
       .datum(data)
       .attr("fill", "none")
-      .attr("stroke", "#3b82f6")
-      .attr("stroke-width", 2)
-      .attr("d", line);
+      .attr("stroke", colors.line)
+      .attr("stroke-width", 2);
 
-    // Add dots for each data point
-    const dots = g
+    const dots = plotAreaG
       .selectAll(".dot")
       .data(data)
       .enter()
       .append("circle")
       .attr("class", "dot")
-      .attr("cx", (d) => xScale(d.date))
       .attr("cy", (d) => yScale(d.duration))
       .attr("r", 4)
-      .attr("fill", "#3b82f6")
-      .attr("stroke", "#ffffff")
+      .attr("fill", colors.line)
+      .attr("stroke", colors.dotStroke)
       .attr("stroke-width", 2);
 
-    // Add tooltips
+    // Tooltip
     const tooltip = d3
       .select("body")
       .append("div")
-      .attr("class", "tooltip")
+      .attr("class", "build-time-chart-tooltip")
       .style("position", "absolute")
-      .style("background", "rgba(0, 0, 0, 0.8)")
-      .style("color", "white")
-      .style("padding", "8px")
-      .style("border-radius", "4px")
+      .style("background", "rgba(15, 23, 42, 0.95)")
+      .style("color", "#e2e8f0")
+      .style("padding", "8px 12px")
+      .style("border-radius", "6px")
       .style("font-size", "12px")
       .style("pointer-events", "none")
-      .style("opacity", 0);
+      .style("opacity", 0)
+      .style("border", "1px solid #475569");
 
     dots
       .on("mouseover", function (event, d) {
-        tooltip.transition().duration(200).style("opacity", 0.9);
+        tooltip.transition().duration(200).style("opacity", 0.95);
         const prInfo = d.prNumber ? `PR #${d.prNumber}` : "Non-PR Build";
         const prTitle = d.prTitle ? `<br/>Title: ${d.prTitle}` : "";
         tooltip
@@ -242,38 +296,49 @@ export function renderBuildTimeChart(data: ChartDataPoint[], chartId: string) {
         tooltip.transition().duration(500).style("opacity", 0);
       });
 
-    // Add X axis
-    g.append("g")
-      .attr("transform", `translate(0,${height})`)
-      .call(
-        d3
-          .axisBottom(xScale)
-          .tickFormat((d) => d3.timeFormat("%m/%d")(d as Date))
-      );
+    const xAxisG = contentG
+      .append("g")
+      .attr("transform", `translate(0,${height})`);
 
-    // Add Y axis
-    g.append("g").call(d3.axisLeft(yScale));
+    const yAxisG = contentG.append("g").call(yAxis).attr("color", colors.axis);
+    yAxisG.selectAll(".domain").attr("stroke", colors.axis);
+    yAxisG.selectAll(".tick line").attr("stroke", colors.axis);
+    yAxisG.selectAll(".tick text").style("fill", colors.axis);
 
-    // Add axis labels
-    g.append("text")
+    contentG
+      .append("text")
       .attr("transform", "rotate(-90)")
       .attr("y", 0 - margin.left)
       .attr("x", 0 - height / 2)
       .attr("dy", "1em")
       .style("text-anchor", "middle")
       .style("font-size", "12px")
-      .style("fill", "#666")
+      .style("fill", colors.label)
       .text("Build Time (seconds)");
 
-    g.append("text")
+    contentG
+      .append("text")
       .attr(
         "transform",
         `translate(${width / 2}, ${height + margin.bottom - 5})`
       )
       .style("text-anchor", "middle")
       .style("font-size", "12px")
-      .style("fill", "#666")
+      .style("fill", colors.label)
       .text("Date");
+
+    updateZoomedView(baseXScale);
+
+    // Semantic zoom: only the x (time) scale changes; y-axis and layout stay fixed
+    const zoomBehavior = d3
+      .zoom<SVGGElement, unknown>()
+      .scaleExtent([0.5, 20])
+      .on("zoom", (event) => {
+        const viewXScale = event.transform.rescaleX(baseXScale);
+        updateZoomedView(viewXScale);
+      });
+
+    marginG.call(zoomBehavior);
   };
 
   // Initial render
@@ -294,9 +359,9 @@ export function renderBuildTimeChart(data: ChartDataPoint[], chartId: string) {
     resizeObserver.observe(containerElement);
   }
 
-  // Cleanup function to disconnect observer when component unmounts
-  // This will be called by Crank when the component is removed
+  // Cleanup function when component unmounts
   return () => {
     resizeObserver.disconnect();
+    d3.selectAll(".build-time-chart-tooltip").remove();
   };
 }
