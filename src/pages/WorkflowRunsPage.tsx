@@ -86,7 +86,7 @@ export function* WorkflowRunsPage(
         end: endDate,
       });
 
-      // After fetch completes, reload from cache
+      // After fetch completes, reload from cache to include newly cached chunks
       await loadFromCache(repository);
 
       this.refresh(() => {
@@ -96,6 +96,8 @@ export function* WorkflowRunsPage(
       const errorMessage =
         error instanceof Error ? error.message : "An unknown error occurred";
       onError(errorMessage);
+      // Even on error, reload from cache so any successfully fetched chunks are visible
+      await loadFromCache(repository);
       this.refresh(() => {
         state.error = errorMessage;
         state.isLoading = false;

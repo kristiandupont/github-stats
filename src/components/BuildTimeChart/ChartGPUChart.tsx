@@ -190,13 +190,14 @@ export class ChartGPUChart {
 
           if (!d) return "";
 
+          const name = d.name ? `<br/>${d.name}` : "";
           const prInfo = d.prNumber ? `PR #${d.prNumber}` : "Non-PR Build";
           const prTitle = d.prTitle ? `<br/>Title: ${d.prTitle}` : "";
           const outlierLabel =
             seriesName === "Outliers"
               ? '<br/><span style="color: #ef4444;">⚠ Outlier</span>'
               : "";
-          return `<strong>${prInfo}</strong><br/>Duration: ${formatDuration(d.duration)}<br/>Date: ${d.date.toLocaleDateString()}${prTitle}${outlierLabel}`;
+          return `<strong>${prInfo}</strong>${name}<br/>Duration: ${formatDuration(d.duration)}<br/>Date: ${d.date.toLocaleDateString()}${prTitle}${outlierLabel}`;
         },
       },
     });
@@ -207,6 +208,7 @@ export class ChartGPUChart {
     const chartData: ChartDataPoint[] = runs.map((run) => ({
       date: new Date(run.created_at),
       duration: calculateDurationInSeconds(run.created_at, run.updated_at),
+      name: run.name,
       prNumber:
         run.pull_requests && run.pull_requests.length > 0
           ? run.pull_requests[0].number

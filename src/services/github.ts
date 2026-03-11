@@ -51,6 +51,8 @@ async function fetchSingleDateRange(
       repo,
       per_page: 100, // Maximum per page
       page,
+      status: "completed",
+      conclusion: "success",
       created: `${startDate.toISOString().split("T")[0]}..${endDate.toISOString().split("T")[0]}`,
     });
 
@@ -80,14 +82,17 @@ async function fetchSingleDateRange(
   return runs;
 }
 
-// Helper function to fetch date range with automatic chunking if needed
+// Helper function to fetch date range with automatic chunking if needed.
+// Calls the provided onChunk callback for each successfully fetched chunk
+// so that partial results can be cached even if later chunks fail.
 async function fetchDateRangeWithChunking(
   octokit: Octokit,
   owner: string,
   repo: string,
   startDate: Date,
   endDate: Date,
-): Promise<WorkflowRun[]> {
+  onChunk: (runs: WorkflowRun[]) => Promise<void> | void,
+): Promise<void> {
   console.log(
     `Fetching date range: ${startDate.toISOString().split("T")[0]} to ${endDate.toISOString().split("T")[0]}`,
   );
@@ -111,38 +116,30 @@ async function fetchDateRangeWithChunking(
     console.log(
       `Chunk 1: ${startDate.toISOString().split("T")[0]} to ${midDate.toISOString().split("T")[0]}`,
     );
-    const firstHalf = await fetchDateRangeWithChunking(
+    await fetchDateRangeWithChunking(
       octokit,
       owner,
       repo,
       startDate,
       midDate,
+      onChunk,
     );
 
     console.log(
       `Chunk 2: ${new Date(midDate.getTime() + 86400000).toISOString().split("T")[0]} to ${endDate.toISOString().split("T")[0]}`,
     );
-    const secondHalf = await fetchDateRangeWithChunking(
+    await fetchDateRangeWithChunking(
       octokit,
       owner,
       repo,
       new Date(midDate.getTime() + 86400000), // Next day after midDate
       endDate,
+      onChunk,
     );
-
-    // Combine and deduplicate by run ID
-    const allRuns = [...firstHalf, ...secondHalf];
-    const uniqueRuns = Array.from(
-      new Map(allRuns.map((run) => [run.id, run])).values(),
-    );
-
-    console.log(
-      `Combined ${firstHalf.length} + ${secondHalf.length} = ${uniqueRuns.length} unique runs`,
-    );
-    return uniqueRuns;
+    return;
   }
 
-  return runs;
+  await onChunk(runs);
 }
 
 export async function fetchWorkflowRuns(
@@ -199,32 +196,40 @@ export async function fetchWorkflowRuns(
     console.log(
       `Fetching workflow runs for ${repository} from ${startDate.toISOString()} to ${endDate.toISOString()}`,
     );
+    const allWorkflowRuns: WorkflowRun[] = [];
 
-    const allWorkflowRuns = await fetchDateRangeWithChunking(
+    await fetchDateRangeWithChunking(
       octokit,
       owner,
       repo,
       startDate,
       endDate,
+      async (runs) => {
+        allWorkflowRuns.push(...runs);
+
+        if (useCache && runs.length > 0) {
+          try {
+            await storageService.saveWorkflowRuns(runs, repository);
+            console.log(
+              `Cached ${runs.length} workflow runs chunk for ${repository}`,
+            );
+          } catch (error) {
+            console.warn("Failed to cache workflow runs chunk:", error);
+          }
+        }
+      },
+    );
+
+    // Deduplicate by run ID in case of overlapping date ranges/chunks
+    const uniqueRuns = Array.from(
+      new Map(allWorkflowRuns.map((run) => [run.id, run])).values(),
     );
 
     console.log(
-      `Finished fetching: ${allWorkflowRuns.length} total workflow runs`,
+      `Finished fetching: ${uniqueRuns.length} total workflow runs`,
     );
 
-    // Cache the results
-    if (useCache && allWorkflowRuns.length > 0) {
-      try {
-        await storageService.saveWorkflowRuns(allWorkflowRuns, repository);
-        console.log(
-          `Cached ${allWorkflowRuns.length} workflow runs for ${repository}`,
-        );
-      } catch (error) {
-        console.warn("Failed to cache workflow runs:", error);
-      }
-    }
-
-    return allWorkflowRuns;
+    return uniqueRuns;
   } catch (error) {
     console.error("Error fetching workflow runs:", error);
 

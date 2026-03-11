@@ -17,21 +17,21 @@ export function* BuildTimeChart(this: Context, { runs }: BuildTimeChartProps) {
   let filterOutliers = false;
   let showTrendline = true;
 
-  const toggleOutliers = async () => {
-    filterOutliers = !filterOutliers;
-    if (chartGPU) {
-      await chartGPU.setFilterOutliers(filterOutliers);
-    }
-    this.refresh();
-  };
+  const toggleOutliers = () =>
+    this.refresh(async () => {
+      filterOutliers = !filterOutliers;
+      if (chartGPU) {
+        await chartGPU.setFilterOutliers(filterOutliers);
+      }
+    });
 
-  const toggleTrendline = async () => {
-    showTrendline = !showTrendline;
-    if (chartGPU) {
-      await chartGPU.setShowTrendline(showTrendline);
-    }
-    this.refresh();
-  };
+  const toggleTrendline = () =>
+    this.refresh(async () => {
+      showTrendline = !showTrendline;
+      if (chartGPU) {
+        await chartGPU.setShowTrendline(showTrendline);
+      }
+    });
 
   // Update data when runs change
   for ({ runs } of this) {
