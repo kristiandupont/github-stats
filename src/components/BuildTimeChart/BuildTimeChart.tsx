@@ -1,19 +1,37 @@
 /** @jsxImportSource @b9g/crank */
 import type { Context } from "@b9g/crank";
 import { type WorkflowRun } from "../../services/github";
-import { D3Chart } from "./D3Chart";
+import { ChartGPUChart } from "./ChartGPUChart";
 
 interface BuildTimeChartProps {
   runs: WorkflowRun[];
 }
 
 // Store chart instances to update them when data changes
-const chartInstances = new Map<string, D3Chart>();
+const chartGPUInstances = new Map<string, ChartGPUChart>();
 
 export function* BuildTimeChart(this: Context, { runs }: BuildTimeChartProps) {
   // Generate unique ID for this chart instance (only once, outside the loop)
   let chartId: string | undefined;
-  let chart: D3Chart | undefined;
+  let chartGPU: ChartGPUChart | undefined;
+  let filterOutliers = false;
+  let showTrendline = true;
+
+  const toggleOutliers = async () => {
+    filterOutliers = !filterOutliers;
+    if (chartGPU) {
+      await chartGPU.setFilterOutliers(filterOutliers);
+    }
+    this.refresh();
+  };
+
+  const toggleTrendline = async () => {
+    showTrendline = !showTrendline;
+    if (chartGPU) {
+      await chartGPU.setShowTrendline(showTrendline);
+    }
+    this.refresh();
+  };
 
   // Update data when runs change
   for ({ runs } of this) {
@@ -23,20 +41,20 @@ export function* BuildTimeChart(this: Context, { runs }: BuildTimeChartProps) {
     }
 
     // Mount the chart after first render
-    if (!chart) {
+    if (!chartGPU) {
       this.after((element) => {
         const chartElement = element.querySelector(
           `#${chartId}`,
         ) as HTMLElement;
         if (chartElement) {
-          chart = new D3Chart(chartElement);
-          chartInstances.set(chartId!, chart);
+          chartGPU = new ChartGPUChart(chartElement);
+          chartGPUInstances.set(chartId!, chartGPU);
 
           // Initial render with data
           const successfulBuilds = runs.filter(
             (run) => run.conclusion === "success",
           );
-          chart.updateData(successfulBuilds);
+          chartGPU.updateData(successfulBuilds);
         }
       });
     } else {
@@ -44,7 +62,7 @@ export function* BuildTimeChart(this: Context, { runs }: BuildTimeChartProps) {
       const successfulBuilds = runs.filter(
         (run) => run.conclusion === "success",
       );
-      chart.updateData(successfulBuilds);
+      chartGPU.updateData(successfulBuilds);
     }
 
     const currentSuccessful = runs.filter(
@@ -82,17 +100,43 @@ export function* BuildTimeChart(this: Context, { runs }: BuildTimeChartProps) {
     yield (
       <div class="w-full">
         <div class="mb-4">
-          <h3 class="text-xl font-semibold text-slate-200 mb-2">
-            Build Time Trend for Successful Builds
-          </h3>
-          <p class="text-slate-300">
-            Showing {currentSuccessful.length} successful builds over time
-          </p>
-          <div class="text-sm text-slate-300 mt-2">
-            <p>
-              • Total workflow runs: {runs.length} • Successful builds:{" "}
-              {currentSuccessful.length} • PR builds: {runsWithPRs.length}
-            </p>
+          <div class="flex justify-between items-start">
+            <div>
+              <h3 class="text-xl font-semibold text-slate-200 mb-2">
+                Build Time Trend for Successful Builds
+              </h3>
+              <p class="text-slate-300">
+                Showing {currentSuccessful.length} successful builds over time
+              </p>
+              <div class="text-sm text-slate-300 mt-2">
+                <p>
+                  • Total workflow runs: {runs.length} • Successful builds:{" "}
+                  {currentSuccessful.length} • PR builds: {runsWithPRs.length}
+                </p>
+              </div>
+            </div>
+            <div class="flex gap-2">
+              <button
+                onclick={toggleTrendline}
+                class={`px-3 py-1.5 text-sm rounded border transition-colors ${
+                  showTrendline
+                    ? "bg-amber-500/20 border-amber-500 text-amber-200"
+                    : "bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700"
+                }`}
+              >
+                {showTrendline ? "✓ " : ""}Trendline
+              </button>
+              <button
+                onclick={toggleOutliers}
+                class={`px-3 py-1.5 text-sm rounded border transition-colors ${
+                  filterOutliers
+                    ? "bg-blue-500/20 border-blue-500 text-blue-200"
+                    : "bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700"
+                }`}
+              >
+                {filterOutliers ? "✓ " : ""}Filter Outliers
+              </button>
+            </div>
           </div>
         </div>
         <div
@@ -105,9 +149,9 @@ export function* BuildTimeChart(this: Context, { runs }: BuildTimeChartProps) {
 
   // Cleanup
   this.cleanup = () => {
-    if (chart && chartId) {
-      chart.destroy();
-      chartInstances.delete(chartId);
+    if (chartGPU && chartId) {
+      chartGPU.destroy();
+      chartGPUInstances.delete(chartId);
     }
     return Promise.resolve();
   };
