@@ -1,7 +1,7 @@
 /** @jsxImportSource @b9g/crank */
 
 import type { Context } from "@b9g/crank";
-import { BuildTimeChart } from "../components/BuildTimeChart";
+import { BuildTimeChart } from "../components/BuildTimeChart/BuildTimeChart";
 import { fetchWorkflowRuns, type WorkflowRun } from "../services/github";
 import { storageService } from "../services/storage";
 
@@ -19,7 +19,7 @@ interface WorkflowRunsPageState {
 
 export function* WorkflowRunsPage(
   this: Context,
-  { selectedRepository, onError }: WorkflowRunsPageProps
+  { selectedRepository, onError }: WorkflowRunsPageProps,
 ) {
   // Default to 30 days ago
   const defaultFromDate = new Date();
@@ -67,7 +67,7 @@ export function* WorkflowRunsPage(
     owner: string,
     repo: string,
     startDate: Date,
-    endDate: Date
+    endDate: Date,
   ) => {
     const repository = `${owner}/${repo}`;
 
@@ -111,7 +111,7 @@ export function* WorkflowRunsPage(
       "workflowRuns.length:",
       state.workflowRuns.length,
       "isLoading:",
-      state.isLoading
+      state.isLoading,
     );
     if (
       selectedRepository &&
@@ -178,7 +178,7 @@ export function* WorkflowRunsPage(
                   <input
                     type="date"
                     class="px-3 py-1 bg-slate-800 border border-slate-600 rounded text-slate-200 text-sm"
-                    value={state.fromDate.toISOString().split('T')[0]}
+                    value={state.fromDate.toISOString().split("T")[0]}
                     onchange={(e: Event) => {
                       const target = e.target as HTMLInputElement;
                       const newDate = new Date(target.value);
@@ -192,10 +192,15 @@ export function* WorkflowRunsPage(
                     disabled={state.isLoading}
                     onclick={() => {
                       const now = new Date();
-                      handleFetchDateRange(repo.owner, repo.name, state.fromDate, now);
+                      handleFetchDateRange(
+                        repo.owner,
+                        repo.name,
+                        state.fromDate,
+                        now,
+                      );
                     }}
                   >
-                    {state.isLoading ? 'Loading...' : 'Fetch Data'}
+                    {state.isLoading ? "Loading..." : "Fetch Data"}
                   </button>
                 </div>
               </div>

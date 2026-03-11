@@ -1,129 +1,13 @@
-/** @jsxImportSource @b9g/crank */
 import * as d3 from "d3";
-import type { Context } from "@b9g/crank";
-import {
-  type WorkflowRun,
-  calculateDurationInSeconds,
-} from "../services/github";
-
-interface BuildTimeChartProps {
-  runs: WorkflowRun[];
-}
-
-interface ChartDataPoint {
-  date: Date;
-  duration: number;
-  prNumber: number | null;
-  prTitle?: string | null;
-  runId: number;
-}
-
-// Store chart instances to update them when data changes
-const chartInstances = new Map<string, D3Chart>();
-
-export function* BuildTimeChart(
-  this: Context,
-  { runs }: BuildTimeChartProps
-) {
-  // Generate unique ID for this chart instance (only once, outside the loop)
-  let chartId: string | undefined;
-  let chart: D3Chart | undefined;
-
-  // Update data when runs change
-  for ({ runs } of this) {
-    // Initialize chart ID on first render
-    if (!chartId) {
-      chartId = `build-time-chart-${Date.now()}`;
-    }
-
-    // Mount the chart after first render
-    if (!chart) {
-      this.after((element) => {
-        const chartElement = element.querySelector(`#${chartId}`) as HTMLElement;
-        if (chartElement) {
-          chart = new D3Chart(chartElement);
-          chartInstances.set(chartId!, chart);
-
-          // Initial render with data
-          const successfulBuilds = runs.filter((run) => run.conclusion === "success");
-          chart.updateData(successfulBuilds);
-        }
-      });
-    } else {
-      // Update existing chart with new data
-      const successfulBuilds = runs.filter((run) => run.conclusion === "success");
-      chart.updateData(successfulBuilds);
-    }
-
-    const currentSuccessful = runs.filter((run) => run.conclusion === "success");
-    const runsWithPRs = runs.filter(
-      (run) => run.pull_requests && run.pull_requests.length > 0
-    );
-
-    if (currentSuccessful.length === 0) {
-      yield (
-        <div class="w-full">
-          <div class="mb-4">
-            <h3 class="text-xl font-semibold text-slate-200 mb-2">
-              Build Time Trend for Successful Builds
-            </h3>
-            <p class="text-slate-300">
-              No successful builds found in recent history
-            </p>
-            <div class="text-sm text-slate-300 mt-2 bg-slate-800/80 p-3 rounded border border-slate-600">
-              <p>
-                <strong>Summary:</strong>
-              </p>
-              <p>• Total workflow runs: {runs.length}</p>
-              <p>• Successful runs: {currentSuccessful.length}</p>
-              <p>• Runs with PRs: {runsWithPRs.length}</p>
-            </div>
-          </div>
-        </div>
-      );
-      continue;
-    }
-
-    // Render the component (static - never re-renders the chart)
-    yield (
-      <div class="w-full">
-        <div class="mb-4">
-          <h3 class="text-xl font-semibold text-slate-200 mb-2">
-            Build Time Trend for Successful Builds
-          </h3>
-          <p class="text-slate-300">
-            Showing {currentSuccessful.length} successful builds over time
-          </p>
-          <div class="text-sm text-slate-300 mt-2">
-            <p>
-              • Total workflow runs: {runs.length} • Successful builds:{" "}
-              {currentSuccessful.length} • PR builds:{" "}
-              {runsWithPRs.length}
-            </p>
-          </div>
-        </div>
-        <div
-          id={chartId}
-          class="w-full h-96 min-h-64 border border-slate-600 rounded-lg bg-black overflow-hidden"
-        ></div>
-      </div>
-    );
-  }
-
-  // Cleanup
-  this.cleanup = () => {
-    if (chart && chartId) {
-      chart.destroy();
-      chartInstances.delete(chartId);
-    }
-    return Promise.resolve();
-  };
-}
+import type { WorkflowRun } from "../../services/github";
+import { calculateDurationInSeconds } from "../../services/calculateDurationInSeconds";
+import type { ChartDataPoint } from "./ChartDataPoint";
 
 // D3 Chart Class - owns all chart state and rendering
-class D3Chart {
+export class D3Chart {
   private container: d3.Selection<HTMLElement, unknown, null, undefined>;
-  private svg: d3.Selection<SVGSVGElement, unknown, null, undefined> | null = null;
+  private svg: d3.Selection<SVGSVGElement, unknown, null, undefined> | null =
+    null;
   private data: ChartDataPoint[] = [];
   private margin = { top: 20, right: 30, bottom: 40, left: 60 };
   private width = 0;
@@ -139,7 +23,12 @@ class D3Chart {
 
   // D3 selections that need to be updated
   private plotAreaG!: d3.Selection<SVGGElement, unknown, null, undefined>;
-  private path!: d3.Selection<SVGPathElement, ChartDataPoint[], null, undefined>;
+  private path!: d3.Selection<
+    SVGPathElement,
+    ChartDataPoint[],
+    null,
+    undefined
+  >;
   private xAxisG!: d3.Selection<SVGGElement, unknown, null, undefined>;
   private yAxisG!: d3.Selection<SVGGElement, unknown, null, undefined>;
   private marginG!: d3.Selection<SVGGElement, unknown, null, undefined>;
@@ -262,7 +151,10 @@ class D3Chart {
 
     contentG
       .append("text")
-      .attr("transform", `translate(${this.width / 2}, ${this.height + this.margin.bottom - 5})`)
+      .attr(
+        "transform",
+        `translate(${this.width / 2}, ${this.height + this.margin.bottom - 5})`,
+      )
       .style("text-anchor", "middle")
       .style("font-size", "12px")
       .style("fill", "#e2e8f0")
@@ -286,7 +178,7 @@ class D3Chart {
       .scaleExtent([0.5, 20])
       .filter((event) => {
         // Disable default wheel zoom - we handle wheel events manually for panning
-        if (event.type === 'wheel') {
+        if (event.type === "wheel") {
           return false;
         }
         // Allow mousedown for drag-to-zoom (handled separately)
@@ -318,7 +210,8 @@ class D3Chart {
         const proposedTransform = d3.zoomIdentity
           .translate(this.currentXTransform.x + dx, 0)
           .scale(this.currentXTransform.k);
-        const constrainedTransform = this.constrainXTransform(proposedTransform);
+        const constrainedTransform =
+          this.constrainXTransform(proposedTransform);
 
         // Update transform directly without triggering zoom event
         this.currentXTransform = constrainedTransform;
@@ -329,7 +222,7 @@ class D3Chart {
     // Drag selection to zoom
     this.setupDragZoom();
 
-    // Y-axis interactive
+    // Y-axis interactive - drag to pan, wheel to zoom
     this.yAxisG
       .style("cursor", "ns-resize")
       .call(this.yZoomBehavior)
@@ -338,8 +231,15 @@ class D3Chart {
         event.stopPropagation();
         const delta = -event.deltaY;
         const scaleFactor = delta > 0 ? 1.1 : 0.9;
-        const newK = Math.max(0.5, Math.min(20, this.currentYTransform.k * scaleFactor));
-        const newTransform = d3.zoomIdentity.scale(newK);
+        const newK = Math.max(
+          0.5,
+          Math.min(20, this.currentYTransform.k * scaleFactor),
+        );
+
+        // Keep the pan position when zooming
+        const newTransform = d3.zoomIdentity
+          .translate(0, this.currentYTransform.y)
+          .scale(newK);
         this.yAxisG.call(this.yZoomBehavior.transform, newTransform);
       });
   }
@@ -391,9 +291,13 @@ class D3Chart {
         const right = Math.max(dragStartX, dragEndX);
         const viewXScale = this.currentXTransform.rescaleX(this.baseXScale);
         const domain = [viewXScale.invert(left), viewXScale.invert(right)];
-        const newScale = (this.baseXScale.range()[1] - this.baseXScale.range()[0]) / (this.baseXScale(domain[1]) - this.baseXScale(domain[0]));
+        const newScale =
+          (this.baseXScale.range()[1] - this.baseXScale.range()[0]) /
+          (this.baseXScale(domain[1]) - this.baseXScale(domain[0]));
         const newTranslate = -this.baseXScale(domain[0]) * newScale;
-        const newTransform = d3.zoomIdentity.translate(newTranslate, 0).scale(newScale);
+        const newTransform = d3.zoomIdentity
+          .translate(newTranslate, 0)
+          .scale(newScale);
         const constrainedTransform = this.constrainXTransform(newTransform);
 
         this.marginG
@@ -421,9 +325,7 @@ class D3Chart {
       // The new transform should map "now" to the right edge of the chart
       const newTranslate = r1 - nowInBase * transform.k;
 
-      return d3.zoomIdentity
-        .translate(newTranslate, 0)
-        .scale(transform.k);
+      return d3.zoomIdentity.translate(newTranslate, 0).scale(transform.k);
     }
 
     return transform;
@@ -475,7 +377,7 @@ class D3Chart {
           .html(
             `<strong>${prInfo}</strong><br/>
              Duration: ${d.duration}s<br/>
-             Date: ${d.date.toLocaleDateString()}${prTitle}`
+             Date: ${d.date.toLocaleDateString()}${prTitle}`,
           )
           .style("left", event.pageX + 10 + "px")
           .style("top", event.pageY - 10 + "px");
@@ -486,7 +388,8 @@ class D3Chart {
 
     // Update axes
     const formatDuration = (domainValue: d3.NumberValue) => {
-      const seconds = typeof domainValue === 'number' ? domainValue : domainValue.valueOf();
+      const seconds =
+        typeof domainValue === "number" ? domainValue : domainValue.valueOf();
       if (seconds < 60) return `${Math.round(seconds)}s`;
       if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
       return `${(seconds / 3600).toFixed(1)}h`;
@@ -497,7 +400,10 @@ class D3Chart {
       .tickFormat((d) => d3.timeFormat("%m/%d")(d as Date))
       .tickSizeOuter(0);
 
-    const yAxisGen = d3.axisLeft(viewYScale).tickFormat(formatDuration).tickSizeOuter(0);
+    const yAxisGen = d3
+      .axisLeft(viewYScale)
+      .tickFormat(formatDuration)
+      .tickSizeOuter(0);
 
     this.xAxisG.call(xAxisGen);
     this.yAxisG.call(yAxisGen);
@@ -510,7 +416,6 @@ class D3Chart {
       axis.selectAll(".tick text").style("fill", "#94a3b8");
     });
   }
-
 
   public updateData(runs: WorkflowRun[]) {
     // Transform runs to chart data
@@ -531,23 +436,34 @@ class D3Chart {
     chartData.sort((a, b) => a.date.getTime() - b.date.getTime());
 
     const oldDataCount = this.data.length;
-    const oldExtent = this.data.length > 0 ? [this.data[0].date, this.data[this.data.length - 1].date] : null;
+    const oldExtent =
+      this.data.length > 0
+        ? [this.data[0].date, this.data[this.data.length - 1].date]
+        : null;
 
     this.data = chartData;
 
-    console.log('[UPDATE DATA]', {
+    console.log("[UPDATE DATA]", {
       oldCount: oldDataCount,
       newCount: chartData.length,
-      oldExtent: oldExtent ? [oldExtent[0].toISOString(), oldExtent[1].toISOString()] : null,
-      newExtent: chartData.length > 0 ? [chartData[0].date.toISOString(), chartData[chartData.length - 1].date.toISOString()] : null
+      oldExtent: oldExtent
+        ? [oldExtent[0].toISOString(), oldExtent[1].toISOString()]
+        : null,
+      newExtent:
+        chartData.length > 0
+          ? [
+              chartData[0].date.toISOString(),
+              chartData[chartData.length - 1].date.toISOString(),
+            ]
+          : null,
     });
 
     if (this.svg) {
       // Update existing chart
       const newDomain = d3.extent(this.data, (d) => d.date) as [Date, Date];
-      console.log('[SCALE UPDATE]', {
-        oldDomain: this.baseXScale.domain().map(d => d.toISOString()),
-        newDomain: newDomain.map(d => d.toISOString())
+      console.log("[SCALE UPDATE]", {
+        oldDomain: this.baseXScale.domain().map((d) => d.toISOString()),
+        newDomain: newDomain.map((d) => d.toISOString()),
       });
       this.baseXScale.domain(newDomain);
       this.baseYScale.domain([0, d3.max(this.data, (d) => d.duration) || 0]);
