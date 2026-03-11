@@ -29,6 +29,96 @@ const getOctokitClient = () => {
   });
 };
 
+// Helper function to fetch a single date range (up to 1000 results due to GitHub API limit)
+async function fetchSingleDateRange(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  startDate: Date,
+  endDate: Date
+): Promise<WorkflowRun[]> {
+  const runs: WorkflowRun[] = [];
+  let page = 1;
+  let hasMorePages = true;
+
+  while (hasMorePages) {
+    console.log(`  Fetching page ${page} for date range ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}...`);
+
+    const response = await octokit.rest.actions.listWorkflowRunsForRepo({
+      owner,
+      repo,
+      per_page: 100, // Maximum per page
+      page,
+      created: `${startDate.toISOString().split("T")[0]}..${endDate.toISOString().split("T")[0]}`,
+    });
+
+    const workflowRuns = response.data.workflow_runs;
+    runs.push(...workflowRuns);
+
+    console.log(`  Fetched ${workflowRuns.length} runs (page ${page}), total for this range: ${runs.length}`);
+
+    // Check if there are more pages
+    hasMorePages = workflowRuns.length === 100;
+
+    if (hasMorePages) {
+      page++;
+      // Small delay to avoid rate limiting (reduced from 100ms to 50ms)
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+
+    // GitHub API limit: can only get 1000 results per query with date filter
+    if (runs.length >= 1000) {
+      console.log(`  Hit 1000-result limit for this date range`);
+      break;
+    }
+  }
+
+  return runs;
+}
+
+// Helper function to fetch date range with automatic chunking if needed
+async function fetchDateRangeWithChunking(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  startDate: Date,
+  endDate: Date
+): Promise<WorkflowRun[]> {
+  console.log(`Fetching date range: ${startDate.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`);
+
+  const runs = await fetchSingleDateRange(octokit, owner, repo, startDate, endDate);
+
+  // If we hit the 1000-result limit, split the date range and fetch each half
+  if (runs.length >= 1000) {
+    console.log(`Hit 1000-result limit! Splitting date range and fetching chunks...`);
+
+    const midDate = new Date((startDate.getTime() + endDate.getTime()) / 2);
+
+    console.log(`Chunk 1: ${startDate.toISOString().split('T')[0]} to ${midDate.toISOString().split('T')[0]}`);
+    const firstHalf = await fetchDateRangeWithChunking(octokit, owner, repo, startDate, midDate);
+
+    console.log(`Chunk 2: ${new Date(midDate.getTime() + 86400000).toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}`);
+    const secondHalf = await fetchDateRangeWithChunking(
+      octokit,
+      owner,
+      repo,
+      new Date(midDate.getTime() + 86400000), // Next day after midDate
+      endDate
+    );
+
+    // Combine and deduplicate by run ID
+    const allRuns = [...firstHalf, ...secondHalf];
+    const uniqueRuns = Array.from(
+      new Map(allRuns.map(run => [run.id, run])).values()
+    );
+
+    console.log(`Combined ${firstHalf.length} + ${secondHalf.length} = ${uniqueRuns.length} unique runs`);
+    return uniqueRuns;
+  }
+
+  return runs;
+}
+
 export async function fetchWorkflowRuns(
   owner: string,
   repo: string,
@@ -85,30 +175,29 @@ export async function fetchWorkflowRuns(
       `Fetching workflow runs for ${repository} from ${startDate.toISOString()} to ${endDate.toISOString()}`
     );
 
-    const response = await octokit.rest.actions.listWorkflowRunsForRepo({
+    const allWorkflowRuns = await fetchDateRangeWithChunking(
+      octokit,
       owner,
       repo,
-      per_page: 100, // Maximum per page
-      created: `${startDate.toISOString().split("T")[0]}..${
-        endDate.toISOString().split("T")[0]
-      }`,
-    });
+      startDate,
+      endDate
+    );
 
-    const workflowRuns = response.data.workflow_runs;
+    console.log(`Finished fetching: ${allWorkflowRuns.length} total workflow runs`);
 
     // Cache the results
-    if (useCache && workflowRuns.length > 0) {
+    if (useCache && allWorkflowRuns.length > 0) {
       try {
-        await storageService.saveWorkflowRuns(workflowRuns, repository);
+        await storageService.saveWorkflowRuns(allWorkflowRuns, repository);
         console.log(
-          `Cached ${workflowRuns.length} workflow runs for ${repository}`
+          `Cached ${allWorkflowRuns.length} workflow runs for ${repository}`
         );
       } catch (error) {
         console.warn("Failed to cache workflow runs:", error);
       }
     }
 
-    return workflowRuns;
+    return allWorkflowRuns;
   } catch (error) {
     console.error("Error fetching workflow runs:", error);
 

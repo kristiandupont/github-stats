@@ -3,6 +3,7 @@
 import type { Context } from "@b9g/crank";
 import { BuildTimeChart } from "../components/BuildTimeChart";
 import { fetchWorkflowRuns, type WorkflowRun } from "../services/github";
+import { storageService } from "../services/storage";
 
 interface WorkflowRunsPageProps {
   selectedRepository: { owner: string; name: string } | null;
@@ -13,29 +14,82 @@ interface WorkflowRunsPageState {
   workflowRuns: WorkflowRun[];
   isLoading: boolean;
   error: string | null;
+  fromDate: Date;
 }
 
 export function* WorkflowRunsPage(
   this: Context,
   { selectedRepository, onError }: WorkflowRunsPageProps
 ) {
+  // Default to 30 days ago
+  const defaultFromDate = new Date();
+  defaultFromDate.setDate(defaultFromDate.getDate() - 30);
+
   const state: WorkflowRunsPageState = {
     workflowRuns: [],
     isLoading: false,
     error: null,
+    fromDate: defaultFromDate,
   };
 
-  const handleFetch = async (owner: string, repo: string) => {
+  // Load all cached runs from IndexedDB and refresh state
+  const loadFromCache = async (repository: string) => {
+    try {
+      const cachedRuns = await storageService.getWorkflowRuns(repository);
+      this.refresh(() => {
+        state.workflowRuns = cachedRuns;
+      });
+    } catch (error) {
+      console.warn("Failed to load from cache:", error);
+    }
+  };
+
+  // Initial fetch: load from cache first
+  const handleInitialLoad = async (owner: string, repo: string) => {
+    const repository = `${owner}/${repo}`;
+
+    try {
+      // Load any cached data
+      await loadFromCache(repository);
+
+      // If we have no cached data, fetch the default range
+      if (state.workflowRuns.length === 0) {
+        const now = new Date();
+        await handleFetchDateRange(owner, repo, state.fromDate, now);
+      }
+    } catch (error) {
+      console.error("Initial load error:", error);
+    }
+  };
+
+  // Fetch workflow runs for a date range (with pagination support)
+  const handleFetchDateRange = async (
+    owner: string,
+    repo: string,
+    startDate: Date,
+    endDate: Date
+  ) => {
+    const repository = `${owner}/${repo}`;
+
     this.refresh(() => {
       state.isLoading = true;
       state.error = null;
-      state.workflowRuns = [];
     });
+
     try {
-      const workflowRuns = await fetchWorkflowRuns(owner, repo);
-      console.log("Fetched workflow runs:", workflowRuns);
+      // First, load any cached data
+      await loadFromCache(repository);
+
+      // Fetch the date range (this will handle pagination internally)
+      await fetchWorkflowRuns(owner, repo, {
+        start: startDate,
+        end: endDate,
+      });
+
+      // After fetch completes, reload from cache
+      await loadFromCache(repository);
+
       this.refresh(() => {
-        state.workflowRuns = workflowRuns;
         state.isLoading = false;
       });
     } catch (error) {
@@ -65,8 +119,8 @@ export function* WorkflowRunsPage(
       !state.isLoading
     ) {
       const repo = selectedRepository;
-      console.log("Triggering auto-fetch for:", repo.owner, repo.name);
-      Promise.resolve().then(() => handleFetch(repo.owner, repo.name));
+      console.log("Triggering initial load for:", repo.owner, repo.name);
+      Promise.resolve().then(() => handleInitialLoad(repo.owner, repo.name));
     }
     if (!selectedRepository) {
       yield (
@@ -115,10 +169,36 @@ export function* WorkflowRunsPage(
               <h1 class="text-2xl font-bold text-slate-200 mb-2">
                 Build times — {repo.owner}/{repo.name}
               </h1>
-              <p class="text-slate-300">
-                Showing {state.workflowRuns.length} workflow runs from the last
-                30 days
-              </p>
+              <div class="flex items-center gap-4">
+                <p class="text-slate-300">
+                  Showing {state.workflowRuns.length} workflow runs
+                </p>
+                <div class="flex items-center gap-2">
+                  <label class="text-sm text-slate-300">From:</label>
+                  <input
+                    type="date"
+                    class="px-3 py-1 bg-slate-800 border border-slate-600 rounded text-slate-200 text-sm"
+                    value={state.fromDate.toISOString().split('T')[0]}
+                    onchange={(e: Event) => {
+                      const target = e.target as HTMLInputElement;
+                      const newDate = new Date(target.value);
+                      this.refresh(() => {
+                        state.fromDate = newDate;
+                      });
+                    }}
+                  />
+                  <button
+                    class="px-4 py-1 bg-indigo-600 text-white rounded text-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={state.isLoading}
+                    onclick={() => {
+                      const now = new Date();
+                      handleFetchDateRange(repo.owner, repo.name, state.fromDate, now);
+                    }}
+                  >
+                    {state.isLoading ? 'Loading...' : 'Fetch Data'}
+                  </button>
+                </div>
+              </div>
             </div>
 
             {state.error && (
@@ -129,10 +209,7 @@ export function* WorkflowRunsPage(
               </div>
             )}
 
-            <BuildTimeChart
-              runs={state.workflowRuns}
-              isLoading={state.isLoading}
-            />
+            <BuildTimeChart runs={state.workflowRuns} />
           </div>
         </div>
       </div>

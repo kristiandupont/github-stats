@@ -8,7 +8,6 @@ import {
 
 interface BuildTimeChartProps {
   runs: WorkflowRun[];
-  isLoading?: boolean;
 }
 
 interface ChartDataPoint {
@@ -19,29 +18,73 @@ interface ChartDataPoint {
   runId: number;
 }
 
+// Store chart instances to update them when data changes
+const chartInstances = new Map<string, D3Chart>();
+
 export function* BuildTimeChart(
   this: Context,
-  { runs, isLoading }: BuildTimeChartProps
+  { runs }: BuildTimeChartProps
 ) {
-  if (isLoading) {
-    yield (
-      <div class="flex justify-center items-center py-8">
-        <div class="text-lg text-slate-300">Loading chart...</div>
-      </div>
+  // Generate unique ID for this chart instance (only once, outside the loop)
+  let chartId: string | undefined;
+  let chart: D3Chart | undefined;
+
+  // Update data when runs change
+  for ({ runs } of this) {
+    // Initialize chart ID on first render
+    if (!chartId) {
+      chartId = `build-time-chart-${Date.now()}`;
+    }
+
+    // Mount the chart after first render
+    if (!chart) {
+      this.after((element) => {
+        const chartElement = element.querySelector(`#${chartId}`) as HTMLElement;
+        if (chartElement) {
+          chart = new D3Chart(chartElement);
+          chartInstances.set(chartId!, chart);
+
+          // Initial render with data
+          const successfulBuilds = runs.filter((run) => run.conclusion === "success");
+          chart.updateData(successfulBuilds);
+        }
+      });
+    } else {
+      // Update existing chart with new data
+      const successfulBuilds = runs.filter((run) => run.conclusion === "success");
+      chart.updateData(successfulBuilds);
+    }
+
+    const currentSuccessful = runs.filter((run) => run.conclusion === "success");
+    const runsWithPRs = runs.filter(
+      (run) => run.pull_requests && run.pull_requests.length > 0
     );
-    return;
-  }
 
-  // Filter for all successful runs
-  const successfulBuilds = runs.filter((run) => run.conclusion === "success");
+    if (currentSuccessful.length === 0) {
+      yield (
+        <div class="w-full">
+          <div class="mb-4">
+            <h3 class="text-xl font-semibold text-slate-200 mb-2">
+              Build Time Trend for Successful Builds
+            </h3>
+            <p class="text-slate-300">
+              No successful builds found in recent history
+            </p>
+            <div class="text-sm text-slate-300 mt-2 bg-slate-800/80 p-3 rounded border border-slate-600">
+              <p>
+                <strong>Summary:</strong>
+              </p>
+              <p>• Total workflow runs: {runs.length}</p>
+              <p>• Successful runs: {currentSuccessful.length}</p>
+              <p>• Runs with PRs: {runsWithPRs.length}</p>
+            </div>
+          </div>
+        </div>
+      );
+      continue;
+    }
 
-  // Get some stats for better messaging
-  const runsWithPRs = runs.filter(
-    (run) => run.pull_requests && run.pull_requests.length > 0
-  );
-  const prWorkflowRuns = runs.filter((run) => run.name === "Pull Requests");
-
-  if (successfulBuilds.length === 0) {
+    // Render the component (static - never re-renders the chart)
     yield (
       <div class="w-full">
         <div class="mb-4">
@@ -49,319 +92,476 @@ export function* BuildTimeChart(
             Build Time Trend for Successful Builds
           </h3>
           <p class="text-slate-300">
-            No successful builds found in recent history
+            Showing {currentSuccessful.length} successful builds over time
           </p>
-          <div class="text-sm text-slate-300 mt-2 bg-slate-800/80 p-3 rounded border border-slate-600">
+          <div class="text-sm text-slate-300 mt-2">
             <p>
-              <strong>Summary:</strong>
-            </p>
-            <p>• Total workflow runs: {runs.length}</p>
-            <p>• Successful runs: {successfulBuilds.length}</p>
-            <p>• PR workflow runs: {prWorkflowRuns.length}</p>
-            <p>• Runs with PRs: {runsWithPRs.length}</p>
-            <p class="mt-2 text-slate-300">
-              <em>
-                Note: All successful workflow runs are shown in the chart.
-              </em>
+              • Total workflow runs: {runs.length} • Successful builds:{" "}
+              {currentSuccessful.length} • PR builds:{" "}
+              {runsWithPRs.length}
             </p>
           </div>
         </div>
+        <div
+          id={chartId}
+          class="w-full h-96 min-h-64 border border-slate-600 rounded-lg bg-black overflow-hidden"
+        ></div>
       </div>
     );
-    return;
   }
 
-  // Transform data for the chart
-  const chartData: ChartDataPoint[] = successfulBuilds.map((run) => ({
-    date: new Date(run.created_at),
-    duration: calculateDurationInSeconds(run.created_at, run.updated_at),
-    prNumber:
-      run.pull_requests && run.pull_requests.length > 0
-        ? run.pull_requests[0].number
-        : null,
-    prTitle:
-      run.pull_requests && run.pull_requests.length > 0
-        ? (run.pull_requests[0] as any).title
-        : null,
-    runId: run.id,
-  }));
-
-  // Sort by date
-  chartData.sort((a, b) => a.date.getTime() - b.date.getTime());
-
-  // Generate unique ID for this chart instance
-  const chartId = `build-time-chart-${Date.now()}`;
-
-  // Use Crank's after() lifecycle method to render D3 chart after DOM is ready
-  this.after((element) => {
-    const chartElement = element.querySelector(`#${chartId}`);
-    if (chartElement) {
-      const cleanup = renderBuildTimeChart(chartData, chartId);
-      // Store cleanup function for when component unmounts
-      if (cleanup) {
-        this.cleanup = () => {
-          cleanup();
-          return Promise.resolve();
-        };
-      }
+  // Cleanup
+  this.cleanup = () => {
+    if (chart && chartId) {
+      chart.destroy();
+      chartInstances.delete(chartId);
     }
-  });
-
-  // Render the component
-  yield (
-    <div class="w-full">
-      <div class="mb-4">
-        <h3 class="text-xl font-semibold text-slate-200 mb-2">
-          Build Time Trend for Successful Builds
-        </h3>
-        <p class="text-slate-300">
-          Showing {chartData.length} successful builds over time
-        </p>
-        <div class="text-sm text-slate-300 mt-2">
-          <p>
-            • Total workflow runs: {runs.length} • Successful builds:{" "}
-            {chartData.length} • PR builds:{" "}
-            {chartData.filter((d) => d.prNumber).length}
-          </p>
-        </div>
-      </div>
-      <div
-        id={chartId}
-        class="w-full h-96 min-h-64 border border-slate-600 rounded-lg bg-black overflow-hidden"
-      ></div>
-    </div>
-  );
+    return Promise.resolve();
+  };
 }
 
-// Function to render the D3 chart
-export function renderBuildTimeChart(data: ChartDataPoint[], chartId: string) {
-  // Clear any existing chart
-  d3.select(`#${chartId}`).selectAll("*").remove();
+// D3 Chart Class - owns all chart state and rendering
+class D3Chart {
+  private container: d3.Selection<HTMLElement, unknown, null, undefined>;
+  private svg: d3.Selection<SVGSVGElement, unknown, null, undefined> | null = null;
+  private data: ChartDataPoint[] = [];
+  private margin = { top: 20, right: 30, bottom: 40, left: 60 };
+  private width = 0;
+  private height = 0;
+  private baseXScale!: d3.ScaleTime<number, number>;
+  private baseYScale!: d3.ScaleLinear<number, number>;
+  private xZoomBehavior!: d3.ZoomBehavior<SVGGElement, unknown>;
+  private yZoomBehavior!: d3.ZoomBehavior<SVGGElement, unknown>;
+  private currentXTransform = d3.zoomIdentity;
+  private currentYTransform = d3.zoomIdentity;
+  private tooltip!: d3.Selection<HTMLDivElement, unknown, HTMLElement, any>;
+  private resizeObserver: ResizeObserver | null = null;
 
-  if (data.length === 0) return;
+  // D3 selections that need to be updated
+  private plotAreaG!: d3.Selection<SVGGElement, unknown, null, undefined>;
+  private path!: d3.Selection<SVGPathElement, ChartDataPoint[], null, undefined>;
+  private xAxisG!: d3.Selection<SVGGElement, unknown, null, undefined>;
+  private yAxisG!: d3.Selection<SVGGElement, unknown, null, undefined>;
+  private marginG!: d3.Selection<SVGGElement, unknown, null, undefined>;
 
-  const container = d3.select(`#${chartId}`);
-  const margin = { top: 20, right: 30, bottom: 40, left: 60 };
+  constructor(containerElement: HTMLElement) {
+    this.container = d3.select(containerElement);
+    this.initTooltip();
+  }
 
-  // Function to get current container dimensions
-  const getDimensions = () => {
-    const containerNode = container.node() as HTMLElement;
+  private initTooltip() {
+    // Create tooltip (reuse if exists)
+    let existing = d3.select("body").select(".build-time-chart-tooltip");
+    if (existing.empty()) {
+      this.tooltip = d3
+        .select("body")
+        .append("div")
+        .attr("class", "build-time-chart-tooltip")
+        .style("position", "absolute")
+        .style("background", "rgba(15, 23, 42, 0.95)")
+        .style("color", "#e2e8f0")
+        .style("padding", "8px 12px")
+        .style("border-radius", "6px")
+        .style("font-size", "12px")
+        .style("pointer-events", "none")
+        .style("opacity", 0)
+        .style("border", "1px solid #475569")
+        .style("z-index", "1000");
+    } else {
+      this.tooltip = existing as any;
+    }
+  }
+
+  private getDimensions() {
+    const containerNode = this.container.node();
     const containerRect = containerNode?.getBoundingClientRect();
     const fullWidth = containerRect?.width || 800;
     const fullHeight = containerRect?.height || 400;
-    const width = fullWidth - margin.left - margin.right;
-    const height = fullHeight - margin.top - margin.bottom;
-    return { width, height, fullWidth, fullHeight };
-  };
+    this.width = fullWidth - this.margin.left - this.margin.right;
+    this.height = fullHeight - this.margin.top - this.margin.bottom;
+    return { fullWidth, fullHeight };
+  }
 
-  // Bright colors for dark background
-  const colors = {
-    line: "#38bdf8",
-    dotStroke: "#0f172a",
-    axis: "#94a3b8",
-    label: "#e2e8f0",
-  };
+  private render() {
+    if (this.data.length === 0) return;
 
-  // Function to create/update the chart
-  const updateChart = () => {
-    const { width, height, fullWidth, fullHeight } = getDimensions();
+    const { fullWidth, fullHeight } = this.getDimensions();
 
-    // Remove existing SVG and any previous tooltip for this chart
-    container.selectAll("svg").remove();
-    d3.selectAll(".build-time-chart-tooltip").remove();
-
-    const svg = container
+    // Clear and create SVG
+    this.container.selectAll("svg").remove();
+    this.svg = this.container
       .append("svg")
       .attr("width", fullWidth)
       .attr("height", fullHeight);
 
-    // Clip path so the line and dots don't bleed into margins/axes
-    svg
+    // Clip path
+    this.svg
       .append("defs")
       .append("clipPath")
-      .attr("id", `clip-${chartId}`)
+      .attr("id", `clip-${Date.now()}`)
       .append("rect")
       .attr("x", 0)
       .attr("y", 0)
-      .attr("width", width)
-      .attr("height", height);
+      .attr("width", this.width)
+      .attr("height", this.height);
 
-    const marginG = svg
+    this.marginG = this.svg
       .append("g")
-      .attr("transform", `translate(${margin.left},${margin.top})`);
+      .attr("transform", `translate(${this.margin.left},${this.margin.top})`);
 
-    // Invisible rect so the whole chart area receives pointer/wheel events
-    marginG
+    // Background rect for events
+    this.marginG
       .append("rect")
-      .attr("width", width)
-      .attr("height", height)
+      .attr("width", this.width)
+      .attr("height", this.height)
       .attr("fill", "transparent")
-      .style("cursor", "grab")
       .style("pointer-events", "all");
 
-    // Chart content (no geometric transform; we redraw x-dependent parts on zoom)
-    const contentG = marginG.append("g");
-
-    // Plot area: path and dots, clipped to the data rectangle
-    const plotAreaG = contentG
+    const contentG = this.marginG.append("g");
+    this.plotAreaG = contentG
       .append("g")
-      .attr("clip-path", `url(#clip-${chartId})`);
+      .attr("clip-path", `url(#clip-${Date.now()})`);
 
-    // Base scales: full data domain. Zoom only changes the x (time) view.
-    const baseXScale = d3
+    // Initialize scales
+    this.baseXScale = d3
       .scaleTime()
-      .domain(d3.extent(data, (d) => d.date) as [Date, Date])
-      .range([0, width]);
+      .domain(d3.extent(this.data, (d) => d.date) as [Date, Date])
+      .range([0, this.width]);
 
-    const yScale = d3
+    this.baseYScale = d3
       .scaleLinear()
-      .domain([0, d3.max(data, (d) => d.duration) || 0])
-      .range([height, 0]);
+      .domain([0, d3.max(this.data, (d) => d.duration) || 0])
+      .range([this.height, 0]);
 
-    const lineGen = (xScale: d3.ScaleTime<number, number>) =>
-      d3
-        .line<ChartDataPoint>()
-        .x((d) => xScale(d.date))
-        .y((d) => yScale(d.duration))
-        .curve(d3.curveMonotoneX);
-
-    const xAxisGen = (xScale: d3.ScaleTime<number, number>) =>
-      d3
-        .axisBottom(xScale)
-        .tickFormat((d) => d3.timeFormat("%m/%d")(d as Date))
-        .tickSizeOuter(0);
-
-    const yAxis = d3.axisLeft(yScale).tickSizeOuter(0);
-
-    // Update path, dots, and x-axis for the current x scale (called on init and on zoom)
-    const updateZoomedView = (viewXScale: d3.ScaleTime<number, number>) => {
-      path.attr("d", lineGen(viewXScale)(data) ?? "");
-      dots.attr("cx", (d) => viewXScale(d.date));
-      xAxisG.call(xAxisGen(viewXScale));
-      xAxisG.attr("color", colors.axis).selectAll("text").style("fill", colors.axis);
-      xAxisG.selectAll(".domain").attr("stroke", colors.axis);
-      xAxisG.selectAll(".tick line").attr("stroke", colors.axis);
-      xAxisG.selectAll(".tick text").style("fill", colors.axis);
-    };
-
-    const path = plotAreaG
+    // Create line and dots
+    this.path = this.plotAreaG
       .append("path")
-      .datum(data)
+      .datum(this.data)
       .attr("fill", "none")
-      .attr("stroke", colors.line)
+      .attr("stroke", "#38bdf8")
       .attr("stroke-width", 2);
 
-    const dots = plotAreaG
-      .selectAll(".dot")
-      .data(data)
+    // Axes
+    this.xAxisG = contentG
+      .append("g")
+      .attr("transform", `translate(0,${this.height})`);
+
+    this.yAxisG = contentG.append("g");
+
+    // Axis labels
+    contentG
+      .append("text")
+      .attr("transform", "rotate(-90)")
+      .attr("y", 0 - this.margin.left)
+      .attr("x", 0 - this.height / 2)
+      .attr("dy", "1em")
+      .style("text-anchor", "middle")
+      .style("font-size", "12px")
+      .style("fill", "#e2e8f0")
+      .text("Build Time");
+
+    contentG
+      .append("text")
+      .attr("transform", `translate(${this.width / 2}, ${this.height + this.margin.bottom - 5})`)
+      .style("text-anchor", "middle")
+      .style("font-size", "12px")
+      .style("fill", "#e2e8f0")
+      .text("Date");
+
+    // Setup zoom behaviors
+    this.setupZoom();
+
+    // Initial render
+    this.updateView();
+
+    // Note: ResizeObserver disabled to prevent render loops
+    // If container size changes, user can refresh the page
+    // this.setupResizeObserver();
+  }
+
+  private setupZoom() {
+    // X-axis zoom (horizontal panning with scroll, drag to zoom)
+    this.xZoomBehavior = d3
+      .zoom<SVGGElement, unknown>()
+      .scaleExtent([0.5, 20])
+      .filter((event) => {
+        // Disable default wheel zoom - we handle wheel events manually for panning
+        if (event.type === 'wheel') {
+          return false;
+        }
+        // Allow mousedown for drag-to-zoom (handled separately)
+        return !event.ctrlKey && !event.button;
+      })
+      .on("zoom", (event) => {
+        this.currentXTransform = this.constrainXTransform(event.transform);
+        this.updateView();
+      });
+
+    // Y-axis zoom (on Y-axis only)
+    this.yZoomBehavior = d3
+      .zoom<SVGGElement, unknown>()
+      .scaleExtent([0.5, 20])
+      .on("zoom", (event) => {
+        this.currentYTransform = event.transform;
+        this.updateView();
+      });
+
+    // Apply zoom to main area for X (but wheel is disabled via filter)
+    this.marginG.call(this.xZoomBehavior);
+
+    // Handle horizontal scrolling for panning (custom handler)
+    this.marginG.on("wheel.pan", (event) => {
+      event.preventDefault();
+      const deltaX = event.deltaX || (event.shiftKey ? event.deltaY : 0);
+      if (deltaX !== 0) {
+        const dx = -deltaX * 0.5;
+        const proposedTransform = d3.zoomIdentity
+          .translate(this.currentXTransform.x + dx, 0)
+          .scale(this.currentXTransform.k);
+        const constrainedTransform = this.constrainXTransform(proposedTransform);
+
+        // Update transform directly without triggering zoom event
+        this.currentXTransform = constrainedTransform;
+        this.updateView();
+      }
+    });
+
+    // Drag selection to zoom
+    this.setupDragZoom();
+
+    // Y-axis interactive
+    this.yAxisG
+      .style("cursor", "ns-resize")
+      .call(this.yZoomBehavior)
+      .on("wheel", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const delta = -event.deltaY;
+        const scaleFactor = delta > 0 ? 1.1 : 0.9;
+        const newK = Math.max(0.5, Math.min(20, this.currentYTransform.k * scaleFactor));
+        const newTransform = d3.zoomIdentity.scale(newK);
+        this.yAxisG.call(this.yZoomBehavior.transform, newTransform);
+      });
+  }
+
+  private setupDragZoom() {
+    let dragStartX: number | null = null;
+    let dragEndX: number | null = null;
+    let selectionRect: any = null;
+
+    this.marginG.on("mousedown", (event) => {
+      if (event.button !== 0) return;
+      const [x] = d3.pointer(event);
+      dragStartX = x;
+      dragEndX = x;
+
+      selectionRect = this.plotAreaG
+        .append("rect")
+        .attr("class", "zoom-selection")
+        .attr("x", x)
+        .attr("y", 0)
+        .attr("width", 0)
+        .attr("height", this.height)
+        .attr("fill", "rgba(56, 189, 248, 0.2)")
+        .attr("stroke", "rgba(56, 189, 248, 0.5)")
+        .attr("stroke-width", 1);
+
+      event.preventDefault();
+    });
+
+    this.marginG.on("mousemove", (event) => {
+      if (dragStartX === null || !selectionRect) return;
+      const [x] = d3.pointer(event);
+      dragEndX = x;
+      const left = Math.min(dragStartX, dragEndX);
+      const right = Math.max(dragStartX, dragEndX);
+      selectionRect.attr("x", left).attr("width", right - left);
+    });
+
+    this.marginG.on("mouseup", () => {
+      if (dragStartX === null || dragEndX === null) return;
+      if (selectionRect) {
+        selectionRect.remove();
+        selectionRect = null;
+      }
+
+      const dx = Math.abs(dragEndX - dragStartX);
+      if (dx > 5) {
+        const left = Math.min(dragStartX, dragEndX);
+        const right = Math.max(dragStartX, dragEndX);
+        const viewXScale = this.currentXTransform.rescaleX(this.baseXScale);
+        const domain = [viewXScale.invert(left), viewXScale.invert(right)];
+        const newScale = (this.baseXScale.range()[1] - this.baseXScale.range()[0]) / (this.baseXScale(domain[1]) - this.baseXScale(domain[0]));
+        const newTranslate = -this.baseXScale(domain[0]) * newScale;
+        const newTransform = d3.zoomIdentity.translate(newTranslate, 0).scale(newScale);
+        const constrainedTransform = this.constrainXTransform(newTransform);
+
+        this.marginG
+          .transition()
+          .duration(300)
+          .call(this.xZoomBehavior.transform, constrainedTransform);
+      }
+
+      dragStartX = null;
+      dragEndX = null;
+    });
+  }
+
+  private constrainXTransform(transform: d3.ZoomTransform): d3.ZoomTransform {
+    const viewXScale = transform.rescaleX(this.baseXScale);
+    const [_viewStart, viewEnd] = viewXScale.domain();
+    const now = new Date();
+
+    if (viewEnd > now) {
+      // Calculate new transform so that viewEnd aligns with "now"
+      // We want: transform.rescaleX(baseXScale)(now) = baseXScale.range()[1]
+      const r1 = this.baseXScale.range()[1];
+      const nowInBase = this.baseXScale(now);
+
+      // The new transform should map "now" to the right edge of the chart
+      const newTranslate = r1 - nowInBase * transform.k;
+
+      return d3.zoomIdentity
+        .translate(newTranslate, 0)
+        .scale(transform.k);
+    }
+
+    return transform;
+  }
+
+  private updateView() {
+    if (!this.svg || this.data.length === 0) return;
+
+    const viewXScale = this.currentXTransform.rescaleX(this.baseXScale);
+    const viewYScale = this.currentYTransform.rescaleY(this.baseYScale);
+
+    // Update line
+    const lineGen = d3
+      .line<ChartDataPoint>()
+      .x((d) => viewXScale(d.date))
+      .y((d) => viewYScale(d.duration))
+      .curve(d3.curveMonotoneX);
+
+    this.path.attr("d", lineGen(this.data) ?? "");
+
+    // Update dots (data join)
+    const dotsUpdate = this.plotAreaG
+      .selectAll<SVGCircleElement, ChartDataPoint>(".dot")
+      .data(this.data);
+
+    dotsUpdate.exit().remove();
+
+    const dotsEnter = dotsUpdate
       .enter()
       .append("circle")
       .attr("class", "dot")
-      .attr("cy", (d) => yScale(d.duration))
       .attr("r", 4)
-      .attr("fill", colors.line)
-      .attr("stroke", colors.dotStroke)
+      .attr("fill", "#38bdf8")
+      .attr("stroke", "#0f172a")
       .attr("stroke-width", 2);
 
-    // Tooltip
-    const tooltip = d3
-      .select("body")
-      .append("div")
-      .attr("class", "build-time-chart-tooltip")
-      .style("position", "absolute")
-      .style("background", "rgba(15, 23, 42, 0.95)")
-      .style("color", "#e2e8f0")
-      .style("padding", "8px 12px")
-      .style("border-radius", "6px")
-      .style("font-size", "12px")
-      .style("pointer-events", "none")
-      .style("opacity", 0)
-      .style("border", "1px solid #475569");
+    const allDots = dotsUpdate
+      .merge(dotsEnter)
+      .attr("cx", (d) => viewXScale(d.date))
+      .attr("cy", (d) => viewYScale(d.duration));
 
-    dots
-      .on("mouseover", function (event, d) {
-        tooltip.transition().duration(200).style("opacity", 0.95);
+    // Attach tooltip handlers
+    allDots
+      .on("mouseover", (event, d) => {
+        this.tooltip.transition().duration(200).style("opacity", 0.95);
         const prInfo = d.prNumber ? `PR #${d.prNumber}` : "Non-PR Build";
         const prTitle = d.prTitle ? `<br/>Title: ${d.prTitle}` : "";
-        tooltip
+        this.tooltip
           .html(
             `<strong>${prInfo}</strong><br/>
-             Duration: ${d.duration} seconds<br/>
+             Duration: ${d.duration}s<br/>
              Date: ${d.date.toLocaleDateString()}${prTitle}`
           )
           .style("left", event.pageX + 10 + "px")
           .style("top", event.pageY - 10 + "px");
       })
-      .on("mouseout", function () {
-        tooltip.transition().duration(500).style("opacity", 0);
+      .on("mouseout", () => {
+        this.tooltip.transition().duration(500).style("opacity", 0);
       });
 
-    const xAxisG = contentG
-      .append("g")
-      .attr("transform", `translate(0,${height})`);
+    // Update axes
+    const formatDuration = (domainValue: d3.NumberValue) => {
+      const seconds = typeof domainValue === 'number' ? domainValue : domainValue.valueOf();
+      if (seconds < 60) return `${Math.round(seconds)}s`;
+      if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
+      return `${(seconds / 3600).toFixed(1)}h`;
+    };
 
-    const yAxisG = contentG.append("g").call(yAxis).attr("color", colors.axis);
-    yAxisG.selectAll(".domain").attr("stroke", colors.axis);
-    yAxisG.selectAll(".tick line").attr("stroke", colors.axis);
-    yAxisG.selectAll(".tick text").style("fill", colors.axis);
+    const xAxisGen = d3
+      .axisBottom(viewXScale)
+      .tickFormat((d) => d3.timeFormat("%m/%d")(d as Date))
+      .tickSizeOuter(0);
 
-    contentG
-      .append("text")
-      .attr("transform", "rotate(-90)")
-      .attr("y", 0 - margin.left)
-      .attr("x", 0 - height / 2)
-      .attr("dy", "1em")
-      .style("text-anchor", "middle")
-      .style("font-size", "12px")
-      .style("fill", colors.label)
-      .text("Build Time (seconds)");
+    const yAxisGen = d3.axisLeft(viewYScale).tickFormat(formatDuration).tickSizeOuter(0);
 
-    contentG
-      .append("text")
-      .attr(
-        "transform",
-        `translate(${width / 2}, ${height + margin.bottom - 5})`
-      )
-      .style("text-anchor", "middle")
-      .style("font-size", "12px")
-      .style("fill", colors.label)
-      .text("Date");
+    this.xAxisG.call(xAxisGen);
+    this.yAxisG.call(yAxisGen);
 
-    updateZoomedView(baseXScale);
-
-    // Semantic zoom: only the x (time) scale changes; y-axis and layout stay fixed
-    const zoomBehavior = d3
-      .zoom<SVGGElement, unknown>()
-      .scaleExtent([0.5, 20])
-      .on("zoom", (event) => {
-        const viewXScale = event.transform.rescaleX(baseXScale);
-        updateZoomedView(viewXScale);
-      });
-
-    marginG.call(zoomBehavior);
-  };
-
-  // Initial render
-  updateChart();
-
-  // Set up ResizeObserver to handle container size changes
-  const resizeObserver = new ResizeObserver((entries) => {
-    for (const entry of entries) {
-      if (entry.target.id === chartId) {
-        updateChart();
-      }
-    }
-  });
-
-  // Start observing the container
-  const containerElement = container.node() as HTMLElement;
-  if (containerElement) {
-    resizeObserver.observe(containerElement);
+    // Style axes
+    [this.xAxisG, this.yAxisG].forEach((axis) => {
+      axis.attr("color", "#94a3b8");
+      axis.selectAll(".domain").attr("stroke", "#94a3b8");
+      axis.selectAll(".tick line").attr("stroke", "#94a3b8");
+      axis.selectAll(".tick text").style("fill", "#94a3b8");
+    });
   }
 
-  // Cleanup function when component unmounts
-  return () => {
-    resizeObserver.disconnect();
-    d3.selectAll(".build-time-chart-tooltip").remove();
-  };
+
+  public updateData(runs: WorkflowRun[]) {
+    // Transform runs to chart data
+    const chartData: ChartDataPoint[] = runs.map((run) => ({
+      date: new Date(run.created_at),
+      duration: calculateDurationInSeconds(run.created_at, run.updated_at),
+      prNumber:
+        run.pull_requests && run.pull_requests.length > 0
+          ? run.pull_requests[0].number
+          : null,
+      prTitle:
+        run.pull_requests && run.pull_requests.length > 0
+          ? (run.pull_requests[0] as any).title
+          : null,
+      runId: run.id,
+    }));
+
+    chartData.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    const oldDataCount = this.data.length;
+    const oldExtent = this.data.length > 0 ? [this.data[0].date, this.data[this.data.length - 1].date] : null;
+
+    this.data = chartData;
+
+    console.log('[UPDATE DATA]', {
+      oldCount: oldDataCount,
+      newCount: chartData.length,
+      oldExtent: oldExtent ? [oldExtent[0].toISOString(), oldExtent[1].toISOString()] : null,
+      newExtent: chartData.length > 0 ? [chartData[0].date.toISOString(), chartData[chartData.length - 1].date.toISOString()] : null
+    });
+
+    if (this.svg) {
+      // Update existing chart
+      const newDomain = d3.extent(this.data, (d) => d.date) as [Date, Date];
+      console.log('[SCALE UPDATE]', {
+        oldDomain: this.baseXScale.domain().map(d => d.toISOString()),
+        newDomain: newDomain.map(d => d.toISOString())
+      });
+      this.baseXScale.domain(newDomain);
+      this.baseYScale.domain([0, d3.max(this.data, (d) => d.duration) || 0]);
+      this.updateView();
+    } else {
+      // Initial render
+      this.render();
+    }
+  }
+
+  public destroy() {
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect();
+    }
+    this.container.selectAll("*").remove();
+  }
 }
